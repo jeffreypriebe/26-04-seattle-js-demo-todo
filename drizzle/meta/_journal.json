@@ -22,6 +22,13 @@
       "when": 1775419087391,
       "tag": "0002_heavy_black_knight",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1775419510955,
+      "tag": "0003_damp_the_enforcers",
+      "breakpoints": true
     }
   ]
 }
