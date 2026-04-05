@@ -1,0 +1,35 @@
+{
+  "name": "26-04-seattle-js-demo-todo",
+  "version": "1.0.0",
+  "description": "",
+  "homepage": "https://github.com/jeffreypriebe/26-04-seattle-js-demo-todo#readme",
+  "bugs": {
+    "url": "https://github.com/jeffreypriebe/26-04-seattle-js-demo-todo/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jeffreypriebe/26-04-seattle-js-demo-todo.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "eslint": "^9.21.0",
+    "eslint-config-love": "^119.0.0",
+    "eslint-config-prettier": "^10.1.1",
+    "eslint-plugin-eslint-comments": "^3.2.0",
+    "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-n": "^17.15.1",
+    "eslint-plugin-prettier": "^5.2.3",
+    "eslint-plugin-promise": "^7.2.1",
+    "prettier": "^3.5.3",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.2",
+    "vitest": "^4.1.1"
+  }
+}
