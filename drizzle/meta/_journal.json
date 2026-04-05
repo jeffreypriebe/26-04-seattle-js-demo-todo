@@ -15,6 +15,13 @@
       "when": 1775418989980,
       "tag": "0001_serious_veda",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1775419087391,
+      "tag": "0002_heavy_black_knight",
+      "breakpoints": true
     }
   ]
 }
