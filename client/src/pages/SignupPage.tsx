@@ -56,12 +56,14 @@ export function SignupPage() {
       const data = await res.json().catch(() => null)
       if (res.status === 409) {
         setServerError(
-          'An account with this email already exists. Sign in instead.'
+          'An account with this email already exists. Sign in instead.',
         )
       } else if (data?.message) {
         setServerError(data.message)
       } else {
-        setServerError('Could not connect. Check your connection and try again.')
+        setServerError(
+          'Could not connect. Check your connection and try again.',
+        )
       }
     } catch {
       setServerError('Could not connect. Check your connection and try again.')
@@ -76,7 +78,11 @@ export function SignupPage() {
         </CardHeader>
         <CardContent>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-4">
+            <form
+              onSubmit={form.handleSubmit(onSubmit)}
+              noValidate
+              className="space-y-4"
+            >
               <FormField
                 control={form.control}
                 name="email"
@@ -116,16 +122,15 @@ export function SignupPage() {
               />
 
               {serverError && (
-                <p className="text-sm font-medium text-destructive" role="alert">
+                <p
+                  className="text-sm font-medium text-destructive"
+                  role="alert"
+                >
                   {serverError}
                 </p>
               )}
 
-              <Button
-                type="submit"
-                className="w-full min-h-[44px]"
-                disabled={isSubmitting}
-              >
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
                 {isSubmitting ? 'Creating account...' : 'Create account'}
               </Button>
             </form>
@@ -133,7 +138,10 @@ export function SignupPage() {
 
           <p className="mt-4 text-center text-sm text-muted-foreground">
             Already have an account?{' '}
-            <Link to="/login" className="text-primary underline-offset-4 hover:underline">
+            <Link
+              to="/login"
+              className="text-primary underline-offset-4 hover:underline"
+            >
               Sign in
             </Link>
           </p>

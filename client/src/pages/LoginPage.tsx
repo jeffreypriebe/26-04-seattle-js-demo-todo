@@ -56,7 +56,9 @@ export function LoginPage() {
       } else if (data?.message) {
         setServerError(data.message)
       } else {
-        setServerError('Could not connect. Check your connection and try again.')
+        setServerError(
+          'Could not connect. Check your connection and try again.',
+        )
       }
     } catch {
       setServerError('Could not connect. Check your connection and try again.')
@@ -71,7 +73,11 @@ export function LoginPage() {
         </CardHeader>
         <CardContent>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-4">
+            <form
+              onSubmit={form.handleSubmit(onSubmit)}
+              noValidate
+              className="space-y-4"
+            >
               <FormField
                 control={form.control}
                 name="email"
@@ -111,16 +117,15 @@ export function LoginPage() {
               />
 
               {serverError && (
-                <p className="text-sm font-medium text-destructive" role="alert">
+                <p
+                  className="text-sm font-medium text-destructive"
+                  role="alert"
+                >
                   {serverError}
                 </p>
               )}
 
-              <Button
-                type="submit"
-                className="w-full min-h-[44px]"
-                disabled={isSubmitting}
-              >
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
                 {isSubmitting ? 'Signing in...' : 'Sign in'}
               </Button>
             </form>
@@ -128,7 +133,10 @@ export function LoginPage() {
 
           <p className="mt-4 text-center text-sm text-muted-foreground">
             Don&apos;t have an account?{' '}
-            <Link to="/signup" className="text-primary underline-offset-4 hover:underline">
+            <Link
+              to="/signup"
+              className="text-primary underline-offset-4 hover:underline"
+            >
               Sign up
             </Link>
           </p>

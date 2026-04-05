@@ -66,16 +66,17 @@ type FormItemContextValue = {
 
 const FormItemContext = React.createContext<FormItemContextValue | null>(null)
 
-const FormItem = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => {
-    const id = React.useId()
-    return (
-      <FormItemContext.Provider value={{ id }}>
-        <div ref={ref} className={cn('space-y-2', className)} {...props} />
-      </FormItemContext.Provider>
-    )
-  }
-)
+const FormItem = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => {
+  const id = React.useId()
+  return (
+    <FormItemContext.Provider value={{ id }}>
+      <div ref={ref} className={cn('space-y-2', className)} {...props} />
+    </FormItemContext.Provider>
+  )
+})
 FormItem.displayName = 'FormItem'
 
 const FormLabel = React.forwardRef<
@@ -94,32 +95,37 @@ const FormLabel = React.forwardRef<
 })
 FormLabel.displayName = 'FormLabel'
 
-const FormControl = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ ...props }, ref) => {
-    const { formItemId, formDescriptionId, formMessageId, error } = useFormField()
-    return (
-      <div
-        ref={ref}
-        className="relative"
-        {...props}
-        data-invalid={error ? '' : undefined}
-      >
-        {React.Children.map(props.children as React.ReactNode, (child) => {
-          if (React.isValidElement<React.InputHTMLAttributes<HTMLInputElement>>(child)) {
-            return React.cloneElement(child, {
-              id: formItemId,
-              'aria-describedby': error
-                ? `${formDescriptionId} ${formMessageId}`
-                : formDescriptionId,
-              'aria-invalid': error ? true : undefined,
-            } as React.HTMLAttributes<HTMLInputElement>)
-          }
-          return child
-        })}
-      </div>
-    )
-  }
-)
+const FormControl = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ ...props }, ref) => {
+  const { formItemId, formDescriptionId, formMessageId, error } = useFormField()
+  return (
+    <div
+      ref={ref}
+      className="relative"
+      {...props}
+      data-invalid={error ? '' : undefined}
+    >
+      {React.Children.map(props.children as React.ReactNode, child => {
+        if (
+          React.isValidElement<React.InputHTMLAttributes<HTMLInputElement>>(
+            child,
+          )
+        ) {
+          return React.cloneElement(child, {
+            id: formItemId,
+            'aria-describedby': error
+              ? `${formDescriptionId} ${formMessageId}`
+              : formDescriptionId,
+            'aria-invalid': error ? true : undefined,
+          } as React.HTMLAttributes<HTMLInputElement>)
+        }
+        return child
+      })}
+    </div>
+  )
+})
 FormControl.displayName = 'FormControl'
 
 const FormMessage = React.forwardRef<
@@ -146,11 +152,4 @@ const FormMessage = React.forwardRef<
 })
 FormMessage.displayName = 'FormMessage'
 
-export {
-  Form,
-  FormItem,
-  FormLabel,
-  FormControl,
-  FormMessage,
-  FormField,
-}
+export { Form, FormItem, FormLabel, FormControl, FormMessage, FormField }
