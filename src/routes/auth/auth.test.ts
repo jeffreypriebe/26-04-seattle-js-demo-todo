@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect, beforeAll, afterEach } from 'vitest'
 import bcrypt from 'bcryptjs'
 import { eq } from 'drizzle-orm'
 import { buildApp } from '../../app'
 import { db } from '../../db/index'
-import { users } from '../../db/schema'
+import { users, refreshTokens } from '../../db/schema'
 import { runMigrations } from '../../db/migrate'
 
 const TEST_EMAIL = 'testuser@example.com'
@@ -70,7 +70,9 @@ describe('POST /auth/login', () => {
 
     const cookieHeader = res.headers['set-cookie']
     expect(cookieHeader).toBeDefined()
-    const cookieStr = Array.isArray(cookieHeader) ? cookieHeader.join('; ') : cookieHeader
+    const cookieStr = Array.isArray(cookieHeader)
+      ? cookieHeader.join('; ')
+      : cookieHeader
     expect(cookieStr).toContain('refresh_token=')
     expect(cookieStr.toLowerCase()).toContain('httponly')
     await app.close()
@@ -114,7 +116,9 @@ describe('POST /auth/refresh', () => {
     expect(loginRes.statusCode).toBe(200)
 
     const cookieHeader = loginRes.headers['set-cookie']
-    const cookieStr = Array.isArray(cookieHeader) ? cookieHeader[0] : cookieHeader
+    const cookieStr = Array.isArray(cookieHeader)
+      ? cookieHeader[0]
+      : cookieHeader
     const tokenMatch = /refresh_token=([^;]+)/.exec(cookieStr)
     expect(tokenMatch).not.toBeNull()
     const refreshToken = tokenMatch![1]
@@ -133,7 +137,9 @@ describe('POST /auth/refresh', () => {
     // New refresh token cookie must be set
     const newCookieHeader = refreshRes.headers['set-cookie']
     expect(newCookieHeader).toBeDefined()
-    const newCookieStr = Array.isArray(newCookieHeader) ? newCookieHeader[0] : newCookieHeader
+    const newCookieStr = Array.isArray(newCookieHeader)
+      ? newCookieHeader[0]
+      : newCookieHeader
     expect(newCookieStr).toContain('refresh_token=')
 
     // Old refresh token must be invalidated (rotation)
@@ -162,7 +168,9 @@ describe('POST /auth/logout', () => {
     expect(loginRes.statusCode).toBe(200)
 
     const loginCookie = loginRes.headers['set-cookie']
-    const loginCookieStr = Array.isArray(loginCookie) ? loginCookie[0] : loginCookie
+    const loginCookieStr = Array.isArray(loginCookie)
+      ? loginCookie[0]
+      : loginCookie
     const tokenMatch = /refresh_token=([^;]+)/.exec(loginCookieStr)
     expect(tokenMatch).not.toBeNull()
     const refreshToken = tokenMatch![1]
@@ -176,7 +184,9 @@ describe('POST /auth/logout', () => {
 
     // Cookie must be cleared
     const setCookie = logoutRes.headers['set-cookie']
-    const logoutCookieStr = Array.isArray(setCookie) ? setCookie.join('; ') : (setCookie ?? '')
+    const logoutCookieStr = Array.isArray(setCookie)
+      ? setCookie.join('; ')
+      : (setCookie ?? '')
     expect(logoutCookieStr).toContain('refresh_token=')
     expect(logoutCookieStr.toLowerCase()).toMatch(/max-age=0|expires=.*1970/)
 
@@ -211,6 +221,120 @@ describe('POST /auth/logout', () => {
       cookies: { refresh_token: 'unknown-token-value' },
     })
     expect(res.statusCode).toBe(204)
+    await app.close()
+  })
+})
+
+describe('POST /auth/signup', () => {
+  const SIGNUP_EMAIL = 'signup-test@example.com'
+
+  afterEach(async () => {
+    const rows = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, SIGNUP_EMAIL))
+    for (const row of rows) {
+      await db.delete(refreshTokens).where(eq(refreshTokens.userId, row.id))
+    }
+    await db.delete(users).where(eq(users.email, SIGNUP_EMAIL))
+  })
+
+  it('returns 201 with accessToken and user on success', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const res = await app.inject({
+      method: 'POST',
+      url: '/auth/signup',
+      payload: { email: SIGNUP_EMAIL, password: 'password123' },
+    })
+    expect(res.statusCode).toBe(201)
+    const body = res.json() as {
+      accessToken: string
+      user: { id: number; email: string }
+    }
+    expect(typeof body.accessToken).toBe('string')
+    expect(body.accessToken.length).toBeGreaterThan(0)
+    expect(body.user.email).toBe(SIGNUP_EMAIL)
+    expect(body.user.id).toBeGreaterThan(0)
+    await app.close()
+  })
+
+  it('sets an HttpOnly refresh_token cookie', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const res = await app.inject({
+      method: 'POST',
+      url: '/auth/signup',
+      payload: { email: SIGNUP_EMAIL, password: 'password123' },
+    })
+    expect(res.statusCode).toBe(201)
+    const cookieHeader = res.headers['set-cookie']
+    expect(cookieHeader).toBeDefined()
+    const cookieStr = Array.isArray(cookieHeader)
+      ? cookieHeader.join('; ')
+      : cookieHeader
+    expect(cookieStr).toContain('refresh_token=')
+    expect(cookieStr.toLowerCase()).toContain('httponly')
+    await app.close()
+  })
+
+  it('stores the password as a bcrypt hash, not plaintext', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    await app.inject({
+      method: 'POST',
+      url: '/auth/signup',
+      payload: { email: SIGNUP_EMAIL, password: 'mypassword8' },
+    })
+    const [stored] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, SIGNUP_EMAIL))
+      .limit(1)
+    expect(stored).toBeDefined()
+    expect(stored.passwordHash).not.toBe('mypassword8')
+    expect(stored.passwordHash.startsWith('$2')).toBe(true)
+    await app.close()
+  })
+
+  it('returns 409 on duplicate email', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    await app.inject({
+      method: 'POST',
+      url: '/auth/signup',
+      payload: { email: SIGNUP_EMAIL, password: 'password123' },
+    })
+    const res = await app.inject({
+      method: 'POST',
+      url: '/auth/signup',
+      payload: { email: SIGNUP_EMAIL, password: 'password123' },
+    })
+    expect(res.statusCode).toBe(409)
+    await app.close()
+  })
+
+  it('returns 400 for invalid email', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const res = await app.inject({
+      method: 'POST',
+      url: '/auth/signup',
+      payload: { email: 'not-an-email', password: 'password123' },
+    })
+    expect(res.statusCode).toBe(400)
+    await app.close()
+  })
+
+  it('returns 400 for password shorter than 8 characters', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const res = await app.inject({
+      method: 'POST',
+      url: '/auth/signup',
+      payload: { email: SIGNUP_EMAIL, password: 'short' },
+    })
+    expect(res.statusCode).toBe(400)
     await app.close()
   })
 })

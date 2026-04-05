@@ -8,6 +8,13 @@ import { users, refreshTokens } from '../../db/schema'
 
 const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 const ACCESS_TOKEN_TTL_SECONDS = 15 * 60 // 15 minutes
+const BCRYPT_ROUNDS = 10
+const MIN_PASSWORD_LENGTH = 8
+
+const signupBodySchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(MIN_PASSWORD_LENGTH),
+})
 
 const loginBodySchema = z.object({
   email: z.string().email(),
@@ -19,6 +26,58 @@ function hashToken(token: string): string {
 }
 
 export async function authRoutes(fastify: FastifyInstance): Promise<void> {
+  const HTTP_CREATED = 201
+
+  fastify.post('/signup', async (request, reply) => {
+    const result = signupBodySchema.safeParse(request.body)
+    if (!result.success) {
+      return reply.status(400).send({ error: 'Invalid request body' })
+    }
+    const { email, password } = result.data
+
+    const [existing] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1)
+    if (existing) {
+      return reply.status(409).send({ error: 'Email already in use' })
+    }
+
+    const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS)
+    const [user] = await db
+      .insert(users)
+      .values({ email, passwordHash })
+      .returning({ id: users.id, email: users.email })
+
+    const accessToken = fastify.jwt.sign(
+      { sub: user.id, email: user.email },
+      { expiresIn: ACCESS_TOKEN_TTL_SECONDS },
+    )
+
+    const refreshToken = crypto.randomBytes(32).toString('hex')
+    const tokenHash = hashToken(refreshToken)
+    const expiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_MS)
+
+    await db.insert(refreshTokens).values({
+      userId: user.id,
+      tokenHash,
+      expiresAt,
+    })
+
+    reply.setCookie('refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/auth/refresh',
+      maxAge: REFRESH_TOKEN_TTL_MS / 1000,
+    })
+
+    return reply
+      .status(HTTP_CREATED)
+      .send({ accessToken, user: { id: user.id, email: user.email } })
+  })
+
   fastify.post('/login', async (request, reply) => {
     const result = loginBodySchema.safeParse(request.body)
     if (!result.success) {
@@ -26,7 +85,11 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
     }
     const { email, password } = result.data
 
-    const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1)
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1)
     if (!user) {
       return reply.status(401).send({ error: 'Invalid credentials' })
     }
@@ -78,10 +141,16 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       .limit(1)
 
     if (!stored || stored.expiresAt < now) {
-      return reply.status(401).send({ error: 'Invalid or expired refresh token' })
+      return reply
+        .status(401)
+        .send({ error: 'Invalid or expired refresh token' })
     }
 
-    const [user] = await db.select().from(users).where(eq(users.id, stored.userId)).limit(1)
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, stored.userId))
+      .limit(1)
     if (!user) {
       return reply.status(401).send({ error: 'User not found' })
     }

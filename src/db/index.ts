@@ -10,9 +10,7 @@ if (!fs.existsSync(DATA_DIR)) {
 }
 
 const DB_PATH =
-  process.env.NODE_ENV === 'test'
-    ? ':memory:'
-    : path.join(DATA_DIR, 'todo.db')
+  process.env.NODE_ENV === 'test' ? ':memory:' : path.join(DATA_DIR, 'todo.db')
 
 const sqlite: DatabaseType = new Database(DB_PATH)
 sqlite.pragma('journal_mode = WAL')

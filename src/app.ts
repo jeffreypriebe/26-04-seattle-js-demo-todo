@@ -10,7 +10,10 @@ export function buildApp(
 
   fastify.register(cookiePlugin)
   fastify.register(jwtPlugin, {
-    secret: opts.jwtSecret ?? process.env.JWT_SECRET ?? 'dev-secret-change-in-production',
+    secret:
+      opts.jwtSecret ??
+      process.env.JWT_SECRET ??
+      'dev-secret-change-in-production',
   })
 
   fastify.register(authRoutes, { prefix: '/auth' })
