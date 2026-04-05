@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { type ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
 
 interface NavItem {
@@ -64,7 +64,7 @@ export function BottomNav() {
       }}
       aria-label="Main navigation"
     >
-      <ul className="flex h-full list-none m-0 p-0">
+      <ul className="flex h-[56px] list-none m-0 p-0">
         {NAV_ITEMS.map(({ to, label, icon }) => (
           <li key={to} className="flex-1">
             <NavLink
