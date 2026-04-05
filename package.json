@@ -16,6 +16,7 @@
   "main": "dist/index.js",
   "scripts": {
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"
   },
@@ -31,6 +32,7 @@
   "devDependencies": {
     "@types/bcryptjs": "^3.0.0",
     "@types/better-sqlite3": "^7.6.13",
+    "@vitest/coverage-v8": "^4.1.2",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9.21.0",
     "eslint-config-love": "^119.0.0",
