@@ -1,4 +1,11 @@
-import { sqliteTable, integer, text, uniqueIndex, primaryKey, index } from 'drizzle-orm/sqlite-core'
+import {
+  sqliteTable,
+  integer,
+  text,
+  uniqueIndex,
+  primaryKey,
+  index,
+} from 'drizzle-orm/sqlite-core'
 
 export const refreshTokens = sqliteTable(
   'refresh_tokens',
@@ -32,7 +39,7 @@ export const users = sqliteTable(
       .notNull()
       .$defaultFn(() => new Date()),
   },
-  (table) => [uniqueIndex('users_email_idx').on(table.email)]
+  table => [uniqueIndex('users_email_idx').on(table.email)],
 )
 
 export const todos = sqliteTable(
@@ -44,7 +51,9 @@ export const todos = sqliteTable(
       .references(() => users.id),
     title: text('title').notNull(),
     dueDate: integer('due_date', { mode: 'timestamp' }),
-    completed: integer('completed', { mode: 'boolean' }).notNull().default(false),
+    completed: integer('completed', { mode: 'boolean' })
+      .notNull()
+      .default(false),
     position: integer('position').notNull().default(0),
     createdAt: integer('created_at', { mode: 'timestamp' })
       .notNull()
@@ -53,7 +62,7 @@ export const todos = sqliteTable(
       .notNull()
       .$defaultFn(() => new Date()),
   },
-  (table) => [index('todos_user_id_idx').on(table.userId)],
+  table => [index('todos_user_id_idx').on(table.userId)],
 )
 
 export const teams = sqliteTable('teams', {
@@ -79,7 +88,9 @@ export const teamTasks = sqliteTable(
       .notNull()
       .references(() => users.id),
     title: text('title').notNull(),
-    completed: integer('completed', { mode: 'boolean' }).notNull().default(false),
+    completed: integer('completed', { mode: 'boolean' })
+      .notNull()
+      .default(false),
     createdAt: integer('created_at', { mode: 'timestamp' })
       .notNull()
       .$defaultFn(() => new Date()),
@@ -87,7 +98,7 @@ export const teamTasks = sqliteTable(
       .notNull()
       .$defaultFn(() => new Date()),
   },
-  (table) => [
+  table => [
     index('team_tasks_team_id_idx').on(table.teamId),
     index('team_tasks_created_by_user_id_idx').on(table.createdByUserId),
   ],
@@ -104,5 +115,25 @@ export const teamMembers = sqliteTable(
       .notNull()
       .$defaultFn(() => new Date()),
   },
-  (table) => [primaryKey({ columns: [table.teamId, table.userId] })],
+  table => [primaryKey({ columns: [table.teamId, table.userId] })],
+)
+
+export const passwordResetTokens = sqliteTable(
+  'password_reset_tokens',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id),
+    token: text('token').notNull().unique(),
+    expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+    usedAt: integer('used_at', { mode: 'timestamp' }),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  table => [
+    index('password_reset_tokens_token_idx').on(table.token),
+    index('password_reset_tokens_user_id_idx').on(table.userId),
+  ],
 )
