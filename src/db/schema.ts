@@ -20,7 +20,7 @@ export const refreshTokens = sqliteTable(
       .notNull()
       .$defaultFn(() => new Date()),
   },
-  (table) => [
+  table => [
     index('refresh_tokens_user_id_idx').on(table.userId),
     uniqueIndex('refresh_tokens_token_hash_idx').on(table.tokenHash),
   ],
