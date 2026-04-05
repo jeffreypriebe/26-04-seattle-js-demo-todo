@@ -1,5 +1,24 @@
 import { sqliteTable, integer, text, uniqueIndex, primaryKey, index } from 'drizzle-orm/sqlite-core'
 
+export const refreshTokens = sqliteTable(
+  'refresh_tokens',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id),
+    tokenHash: text('token_hash').notNull(),
+    expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    index('refresh_tokens_user_id_idx').on(table.userId),
+    uniqueIndex('refresh_tokens_token_hash_idx').on(table.tokenHash),
+  ],
+)
+
 export const users = sqliteTable(
   'users',
   {

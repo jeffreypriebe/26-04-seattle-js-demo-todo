@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3'
+import Database, { type Database as DatabaseType } from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import * as schema from './schema'
 import path from 'path'
@@ -14,7 +14,7 @@ const DB_PATH =
     ? ':memory:'
     : path.join(DATA_DIR, 'todo.db')
 
-const sqlite = new Database(DB_PATH)
+const sqlite: DatabaseType = new Database(DB_PATH)
 sqlite.pragma('journal_mode = WAL')
 
 export const db = drizzle(sqlite, { schema })
