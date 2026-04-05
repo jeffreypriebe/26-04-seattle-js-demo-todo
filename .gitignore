@@ -143,3 +143,8 @@ vite.config.ts.timestamp-*
 data/*.db
 data/*.db-shm
 data/*.db-wal
+
+# Gas Town runtime state
+.beads/
+.claude/
+.runtime/
