@@ -1,4 +1,4 @@
-import { sqliteTable, integer, text, uniqueIndex, primaryKey } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, integer, text, uniqueIndex, primaryKey, index } from 'drizzle-orm/sqlite-core'
 
 export const users = sqliteTable(
   'users',
@@ -36,6 +36,31 @@ export const teams = sqliteTable('teams', {
     .notNull()
     .$defaultFn(() => new Date()),
 })
+
+export const teamTasks = sqliteTable(
+  'team_tasks',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    teamId: integer('team_id')
+      .notNull()
+      .references(() => teams.id),
+    createdByUserId: integer('created_by_user_id')
+      .notNull()
+      .references(() => users.id),
+    title: text('title').notNull(),
+    completed: integer('completed', { mode: 'boolean' }).notNull().default(false),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: integer('updated_at', { mode: 'timestamp' })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    index('team_tasks_team_id_idx').on(table.teamId),
+    index('team_tasks_created_by_user_id_idx').on(table.createdByUserId),
+  ],
+)
 
 export const teamMembers = sqliteTable(
   'team_members',
