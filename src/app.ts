@@ -1,11 +1,22 @@
 import Fastify from 'fastify'
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import jwtPlugin from '@fastify/jwt'
 import cookiePlugin from '@fastify/cookie'
 import { authRoutes } from './routes/auth/index'
+import { authenticateDecorator } from './plugins/authenticate'
+
+declare module 'fastify' {
+  interface FastifyInstance {
+    authenticate: (
+      request: FastifyRequest,
+      reply: FastifyReply,
+    ) => Promise<void>
+  }
+}
 
 export function buildApp(
   opts: { jwtSecret?: string; logger?: boolean } = {},
-): ReturnType<typeof Fastify> {
+): FastifyInstance {
   const fastify = Fastify({ logger: opts.logger ?? false })
 
   fastify.register(cookiePlugin)
@@ -15,6 +26,7 @@ export function buildApp(
       process.env.JWT_SECRET ??
       'dev-secret-change-in-production',
   })
+  fastify.register(authenticateDecorator)
 
   fastify.register(authRoutes, { prefix: '/auth' })
 
