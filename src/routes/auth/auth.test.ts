@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeAll, afterEach } from 'vitest'
 import bcrypt from 'bcryptjs'
+import crypto from 'crypto'
 import { eq } from 'drizzle-orm'
 import { buildApp } from '../../app'
-import { db } from '../../db/index'
+import { db, sqlite } from '../../db/index'
 import { users, refreshTokens } from '../../db/schema'
 import { runMigrations } from '../../db/migrate'
 
@@ -149,6 +150,41 @@ describe('POST /auth/refresh', () => {
       cookies: { refresh_token: refreshToken },
     })
     expect(replayRes.statusCode).toBe(401)
+
+    await app.close()
+  })
+
+  it('returns 401 when refresh token exists but user has been deleted', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+
+    // Insert a user, grab their id, insert a valid refresh token, then delete the user
+    const passwordHash = await bcrypt.hash('password123', 10)
+    const [user] = await db
+      .insert(users)
+      .values({ email: 'deleted-user@example.com', passwordHash })
+      .returning({ id: users.id })
+
+    const rawToken = crypto.randomBytes(32).toString('hex')
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex')
+    await db.insert(refreshTokens).values({
+      userId: user.id,
+      tokenHash,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    })
+
+    // Delete user and re-insert the orphaned token with FK checks off
+    sqlite.pragma('foreign_keys = OFF')
+    await db.delete(users).where(eq(users.id, user.id))
+    sqlite.pragma('foreign_keys = ON')
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/auth/refresh',
+      cookies: { refresh_token: rawToken },
+    })
+    expect(res.statusCode).toBe(401)
+    expect(res.json<{ error: string }>().error).toBe('User not found')
 
     await app.close()
   })
