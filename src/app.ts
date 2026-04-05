@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import jwtPlugin from '@fastify/jwt'
 import cookiePlugin from '@fastify/cookie'
 import { authRoutes } from './routes/auth/index'
+import { taskRoutes } from './routes/tasks/index'
 import { authenticateDecorator } from './plugins/authenticate'
 
 declare module 'fastify' {
@@ -29,6 +30,7 @@ export function buildApp(
   fastify.register(authenticateDecorator)
 
   fastify.register(authRoutes, { prefix: '/auth' })
+  fastify.register(taskRoutes, { prefix: '/tasks' })
 
   return fastify
 }
