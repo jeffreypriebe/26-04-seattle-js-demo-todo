@@ -5,5 +5,8 @@ export default defineConfig({
     globals: false,
     environment: 'node',
     include: ['src/**/*.test.ts'],
+    coverage: {
+      exclude: ['src/db/schema.ts', 'src/db/migrate.ts'],
+    },
   },
 })
