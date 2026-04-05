@@ -114,4 +114,22 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
 
     return reply.status(200).send({ accessToken })
   })
+
+  const HTTP_NO_CONTENT = 204
+
+  fastify.post('/logout', async (request, reply) => {
+    // eslint-disable-next-line @typescript-eslint/prefer-destructuring -- cookie key has underscores; destructuring alias does not improve readability over dot-notation here
+    const refreshToken = request.cookies.refresh_token
+
+    if (refreshToken !== undefined && refreshToken !== '') {
+      const tokenHash = hashToken(refreshToken)
+      await db
+        .delete(refreshTokens)
+        .where(eq(refreshTokens.tokenHash, tokenHash))
+    }
+
+    reply.clearCookie('refresh_token', { path: '/auth/refresh' })
+
+    return await reply.status(HTTP_NO_CONTENT).send()
+  })
 }

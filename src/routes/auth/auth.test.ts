@@ -147,3 +147,70 @@ describe('POST /auth/refresh', () => {
     await app.close()
   })
 })
+
+describe('POST /auth/logout', () => {
+  it('returns 204 and clears the refresh_token cookie', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+
+    // Login to get a real refresh token
+    const loginRes = await app.inject({
+      method: 'POST',
+      url: '/auth/login',
+      payload: { email: TEST_EMAIL, password: TEST_PASSWORD },
+    })
+    expect(loginRes.statusCode).toBe(200)
+
+    const loginCookie = loginRes.headers['set-cookie']
+    const loginCookieStr = Array.isArray(loginCookie) ? loginCookie[0] : loginCookie
+    const tokenMatch = /refresh_token=([^;]+)/.exec(loginCookieStr)
+    expect(tokenMatch).not.toBeNull()
+    const refreshToken = tokenMatch![1]
+
+    const logoutRes = await app.inject({
+      method: 'POST',
+      url: '/auth/logout',
+      cookies: { refresh_token: refreshToken },
+    })
+    expect(logoutRes.statusCode).toBe(204)
+
+    // Cookie must be cleared
+    const setCookie = logoutRes.headers['set-cookie']
+    const logoutCookieStr = Array.isArray(setCookie) ? setCookie.join('; ') : (setCookie ?? '')
+    expect(logoutCookieStr).toContain('refresh_token=')
+    expect(logoutCookieStr.toLowerCase()).toMatch(/max-age=0|expires=.*1970/)
+
+    // Subsequent refresh must return 401
+    const refreshRes = await app.inject({
+      method: 'POST',
+      url: '/auth/refresh',
+      cookies: { refresh_token: refreshToken },
+    })
+    expect(refreshRes.statusCode).toBe(401)
+
+    await app.close()
+  })
+
+  it('returns 204 when called without a refresh_token cookie', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const res = await app.inject({
+      method: 'POST',
+      url: '/auth/logout',
+    })
+    expect(res.statusCode).toBe(204)
+    await app.close()
+  })
+
+  it('returns 204 even when the token is not in the DB (already expired or used)', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const res = await app.inject({
+      method: 'POST',
+      url: '/auth/logout',
+      cookies: { refresh_token: 'unknown-token-value' },
+    })
+    expect(res.statusCode).toBe(204)
+    await app.close()
+  })
+})
