@@ -17,21 +17,38 @@ Review MD files in .planning directory for the project overview and requirements
 
 ### Install
 
+API (root):
+
 ```bash
 yarn install
 ```
 
+React client:
+
+```bash
+cd client && npm install
+```
+
+### Environment
+
+Copy the example env file before starting the API:
+
+```bash
+cp .env.example .env
+```
+
+`JWT_SECRET` has a safe default for local dev — you can leave it as-is unless you need to test production auth behavior.
 
 ### Run
 
-```bash
-# Development (ts-node)
-yarn dev
+**React client** (Vite dev server, port 5173):
 
-# Production (compiled)
-yarn build
-yarn start
+```bash
+cd client
+npm run dev
 ```
+
+Open http://localhost:5173 in your browser.
 
 ## Testing
 
