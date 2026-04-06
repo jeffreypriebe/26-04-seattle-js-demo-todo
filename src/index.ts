@@ -1,7 +1,7 @@
 import { buildApp } from './app'
 import { runMigrations } from './db/migrate'
 
-const PORT = Number(process.env.PORT ?? 3000)
+const PORT = Number(process.env.PORT ?? 3001)
 const HOST = process.env.HOST ?? '127.0.0.1'
 
 runMigrations()
