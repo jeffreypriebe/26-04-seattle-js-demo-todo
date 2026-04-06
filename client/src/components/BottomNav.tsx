@@ -57,10 +57,11 @@ const NAV_ITEMS: NavItem[] = [
 export function BottomNav() {
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 bg-[hsl(var(--card,_0_0%_100%))]"
+      className="fixed bottom-0 left-0 right-0 z-50"
       style={{
         height: 'calc(56px + env(safe-area-inset-bottom))',
         paddingBottom: 'env(safe-area-inset-bottom)',
+        backgroundColor: 'var(--color-nav-bg)',
       }}
       aria-label="Main navigation"
     >
@@ -74,8 +75,8 @@ export function BottomNav() {
                   'flex flex-col items-center justify-center min-h-[56px] gap-[2px]',
                   'text-xs leading-[1.4] select-none px-4 py-1 rounded-full transition-colors',
                   isActive
-                    ? 'text-primary bg-primary/10 font-medium'
-                    : 'text-muted-foreground',
+                    ? 'text-white bg-white/20 font-medium'
+                    : 'text-white/50',
                 ].join(' ')
               }
             >
