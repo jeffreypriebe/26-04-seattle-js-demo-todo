@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs'
 import { eq } from 'drizzle-orm'
 import { buildApp } from '../../app'
 import { db } from '../../db/index'
-import { users, teams, teamMembers } from '../../db/schema'
+import { users, teams, teamMembers, teamTasks } from '../../db/schema'
 import { runMigrations } from '../../db/migrate'
 
 const TEST_PASSWORD = 'password123'
@@ -75,9 +75,7 @@ beforeAll(async () => {
 
   // Add testUser as member, but NOT otherUser
   await db.delete(teamMembers).where(eq(teamMembers.teamId, testTeamId))
-  await db
-    .insert(teamMembers)
-    .values({ teamId: testTeamId, userId: user.id })
+  await db.insert(teamMembers).values({ teamId: testTeamId, userId: user.id })
 })
 
 describe('POST /teams', () => {
@@ -287,6 +285,212 @@ describe('GET /teams/:id/invite', () => {
     expect(body.invite_code).toBe(TEST_INVITE_CODE)
     expect(body.invite_link).toContain(TEST_INVITE_CODE)
     expect(body.invite_link).toContain('/join?code=')
+    await app.close()
+  })
+})
+
+describe('GET /teams/:id/tasks', () => {
+  it('returns 401 when no auth token', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const res = await app.inject({
+      method: 'GET',
+      url: `/teams/${testTeamId}/tasks`,
+    })
+    expect(res.statusCode).toBe(401)
+    await app.close()
+  })
+
+  it('returns 403 when user is not a team member', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const token = await loginAndGetToken(app, OTHER_EMAIL, TEST_PASSWORD)
+    const res = await app.inject({
+      method: 'GET',
+      url: `/teams/${testTeamId}/tasks`,
+      headers: { authorization: `Bearer ${token}` },
+    })
+    expect(res.statusCode).toBe(403)
+    await app.close()
+  })
+
+  it('returns 404 for non-existent team', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const token = await loginAndGetToken(app, TEST_EMAIL, TEST_PASSWORD)
+    const res = await app.inject({
+      method: 'GET',
+      url: '/teams/999999/tasks',
+      headers: { authorization: `Bearer ${token}` },
+    })
+    expect(res.statusCode).toBe(404)
+    await app.close()
+  })
+
+  it('returns empty array when team has no tasks', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const token = await loginAndGetToken(app, TEST_EMAIL, TEST_PASSWORD)
+    await db.delete(teamTasks).where(eq(teamTasks.teamId, testTeamId))
+    const res = await app.inject({
+      method: 'GET',
+      url: `/teams/${testTeamId}/tasks`,
+      headers: { authorization: `Bearer ${token}` },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual([])
+    await app.close()
+  })
+
+  it('returns tasks with creator_name for team member', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const token = await loginAndGetToken(app, TEST_EMAIL, TEST_PASSWORD)
+
+    // Get the test user id
+    const [testUser] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, TEST_EMAIL))
+      .limit(1)
+
+    await db.delete(teamTasks).where(eq(teamTasks.teamId, testTeamId))
+    await db.insert(teamTasks).values({
+      teamId: testTeamId,
+      createdByUserId: testUser.id,
+      title: 'Test task',
+    })
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/teams/${testTeamId}/tasks`,
+      headers: { authorization: `Bearer ${token}` },
+    })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body).toHaveLength(1)
+    expect(body[0].title).toBe('Test task')
+    expect(body[0].creator_name).toBe(TEST_EMAIL)
+    await app.close()
+  })
+})
+
+describe('POST /teams/:id/tasks', () => {
+  it('returns 401 when no auth token', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const res = await app.inject({
+      method: 'POST',
+      url: `/teams/${testTeamId}/tasks`,
+      payload: { title: 'New task' },
+    })
+    expect(res.statusCode).toBe(401)
+    await app.close()
+  })
+
+  it('returns 403 when user is not a team member', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const token = await loginAndGetToken(app, OTHER_EMAIL, TEST_PASSWORD)
+    const res = await app.inject({
+      method: 'POST',
+      url: `/teams/${testTeamId}/tasks`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { title: 'New task' },
+    })
+    expect(res.statusCode).toBe(403)
+    await app.close()
+  })
+
+  it('returns 400 when title is missing', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const token = await loginAndGetToken(app, TEST_EMAIL, TEST_PASSWORD)
+    const res = await app.inject({
+      method: 'POST',
+      url: `/teams/${testTeamId}/tasks`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {},
+    })
+    expect(res.statusCode).toBe(400)
+    await app.close()
+  })
+
+  it('creates a task and returns 201 with creator_name', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const token = await loginAndGetToken(app, TEST_EMAIL, TEST_PASSWORD)
+    const res = await app.inject({
+      method: 'POST',
+      url: `/teams/${testTeamId}/tasks`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { title: 'Created via API' },
+    })
+    expect(res.statusCode).toBe(201)
+    const body = res.json()
+    expect(body.title).toBe('Created via API')
+    expect(body.creator_name).toBe(TEST_EMAIL)
+    expect(body.completed).toBe(false)
+    expect(typeof body.id).toBe('number')
+    await app.close()
+  })
+
+  it('all team members see the same task pool', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+
+    // Add OTHER_EMAIL as a member of the test team temporarily
+    const [otherUser] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, OTHER_EMAIL))
+      .limit(1)
+    await db
+      .insert(teamMembers)
+      .values({ teamId: testTeamId, userId: otherUser.id })
+      .onConflictDoNothing()
+
+    const memberToken = await loginAndGetToken(app, TEST_EMAIL, TEST_PASSWORD)
+    const otherToken = await loginAndGetToken(app, OTHER_EMAIL, TEST_PASSWORD)
+
+    // Create a task as the main member
+    await app.inject({
+      method: 'POST',
+      url: `/teams/${testTeamId}/tasks`,
+      headers: { authorization: `Bearer ${memberToken}` },
+      payload: { title: 'Shared task' },
+    })
+
+    // Both members should see the same tasks
+    const res1 = await app.inject({
+      method: 'GET',
+      url: `/teams/${testTeamId}/tasks`,
+      headers: { authorization: `Bearer ${memberToken}` },
+    })
+    const res2 = await app.inject({
+      method: 'GET',
+      url: `/teams/${testTeamId}/tasks`,
+      headers: { authorization: `Bearer ${otherToken}` },
+    })
+    expect(res1.statusCode).toBe(200)
+    expect(res2.statusCode).toBe(200)
+    const tasks1 = res1.json()
+    const tasks2 = res2.json()
+    expect(tasks1.map(t => t.id).sort()).toEqual(tasks2.map(t => t.id).sort())
+
+    // Clean up: remove otherUser from the team
+    await db.delete(teamMembers).where(eq(teamMembers.teamId, testTeamId))
+    await db.insert(teamMembers).values({
+      teamId: testTeamId,
+      userId: (
+        await db
+          .select({ id: users.id })
+          .from(users)
+          .where(eq(users.email, TEST_EMAIL))
+          .limit(1)
+      )[0].id,
+    })
+
     await app.close()
   })
 })

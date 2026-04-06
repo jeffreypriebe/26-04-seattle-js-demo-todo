@@ -9,5 +9,10 @@ export const inviteResponseSchema = z.object({
   invite_link: z.string(),
 })
 
+export const createTeamTaskBodySchema = z.object({
+  title: z.string().min(1),
+})
+
 export type TeamParams = z.infer<typeof teamParamsSchema>
 export type InviteResponse = z.infer<typeof inviteResponseSchema>
+export type CreateTeamTaskBody = z.infer<typeof createTeamTaskBodySchema>

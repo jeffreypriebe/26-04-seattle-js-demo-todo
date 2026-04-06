@@ -3,8 +3,8 @@ import { z } from 'zod'
 import crypto from 'crypto'
 import { and, eq } from 'drizzle-orm'
 import { db } from '../../db/index'
-import { teams, teamMembers } from '../../db/schema'
-import { teamParamsSchema } from './schemas'
+import { teams, teamMembers, teamTasks, users } from '../../db/schema'
+import { teamParamsSchema, createTeamTaskBodySchema } from './schemas'
 
 const HTTP_OK = 200
 const HTTP_CREATED = 201
@@ -163,6 +163,138 @@ export function teamRoutes(fastify: FastifyInstance): void {
       return await reply.send({
         invite_code: team.inviteCode,
         invite_link: `${baseUrl}/join?code=${team.inviteCode}`,
+      })
+    },
+  )
+
+  fastify.get(
+    '/:id/tasks',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      const paramsResult = teamParamsSchema.safeParse(request.params)
+      if (!paramsResult.success) {
+        return await reply
+          .status(HTTP_BAD_REQUEST)
+          .send({ error: 'Invalid team id' })
+      }
+
+      const { id: teamId } = paramsResult.data
+      const { id: userId } = request.user
+
+      const [team] = await db
+        .select()
+        .from(teams)
+        .where(eq(teams.id, teamId))
+        .limit(1)
+
+      if (!team) {
+        return await reply
+          .status(HTTP_NOT_FOUND)
+          .send({ error: 'Team not found' })
+      }
+
+      const [membership] = await db
+        .select()
+        .from(teamMembers)
+        .where(
+          and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId)),
+        )
+        .limit(1)
+
+      if (!membership) {
+        return await reply.status(HTTP_FORBIDDEN).send({ error: 'Forbidden' })
+      }
+
+      const tasks = await db
+        .select({
+          id: teamTasks.id,
+          title: teamTasks.title,
+          completed: teamTasks.completed,
+          createdAt: teamTasks.createdAt,
+          updatedAt: teamTasks.updatedAt,
+          creatorEmail: users.email,
+        })
+        .from(teamTasks)
+        .innerJoin(users, eq(teamTasks.createdByUserId, users.id))
+        .where(eq(teamTasks.teamId, teamId))
+
+      return await reply.status(HTTP_OK).send(
+        tasks.map(t => ({
+          id: t.id,
+          title: t.title,
+          completed: t.completed,
+          creator_name: t.creatorEmail,
+          created_at: t.createdAt.toISOString(),
+          updated_at: t.updatedAt.toISOString(),
+        })),
+      )
+    },
+  )
+
+  fastify.post(
+    '/:id/tasks',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      const paramsResult = teamParamsSchema.safeParse(request.params)
+      if (!paramsResult.success) {
+        return await reply
+          .status(HTTP_BAD_REQUEST)
+          .send({ error: 'Invalid team id' })
+      }
+
+      const bodyResult = createTeamTaskBodySchema.safeParse(request.body)
+      if (!bodyResult.success) {
+        return await reply
+          .status(HTTP_BAD_REQUEST)
+          .send({ error: 'Invalid request body' })
+      }
+
+      const { id: teamId } = paramsResult.data
+      const { title } = bodyResult.data
+      const { id: userId } = request.user
+
+      const [team] = await db
+        .select()
+        .from(teams)
+        .where(eq(teams.id, teamId))
+        .limit(1)
+
+      if (!team) {
+        return await reply
+          .status(HTTP_NOT_FOUND)
+          .send({ error: 'Team not found' })
+      }
+
+      const [membership] = await db
+        .select()
+        .from(teamMembers)
+        .where(
+          and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId)),
+        )
+        .limit(1)
+
+      if (!membership) {
+        return await reply.status(HTTP_FORBIDDEN).send({ error: 'Forbidden' })
+      }
+
+      const [created] = await db
+        .insert(teamTasks)
+        .values({ teamId, createdByUserId: userId, title })
+        .returning()
+
+      const [creator] = await db
+        .select({ email: users.email })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1)
+
+      return await reply.status(HTTP_CREATED).send({
+        id: created.id,
+        title: created.title,
+        completed: created.completed,
+        creator_name: creator.email,
+        created_at: created.createdAt.toISOString(),
+        updated_at: created.updatedAt.toISOString(),
       })
     },
   )
