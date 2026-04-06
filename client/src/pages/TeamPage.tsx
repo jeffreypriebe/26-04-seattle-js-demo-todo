@@ -1,8 +1,17 @@
 import * as React from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { apiFetch } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+
+interface Team {
+  id: number
+  name: string
+  invite_code: string
+  created_at: string
+  updated_at: string
+}
 
 interface InviteData {
   invite_code: string
@@ -16,6 +25,22 @@ interface TeamTask {
   creator_name: string
   created_at: string
   updated_at: string
+}
+
+async function fetchMyTeam(): Promise<Team | null> {
+  const res = await apiFetch('/teams/me')
+  if (!res.ok) throw new Error('Failed to fetch team')
+  return res.json() as Promise<Team | null>
+}
+
+async function createTeam(name: string): Promise<Team> {
+  const res = await apiFetch('/teams', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  })
+  if (!res.ok) throw new Error('Failed to create team')
+  return res.json() as Promise<Team>
 }
 
 async function fetchTeamInvite(teamId: number): Promise<InviteData> {
@@ -40,31 +65,129 @@ async function createTeamTask(teamId: number, title: string): Promise<TeamTask> 
   return res.json() as Promise<TeamTask>
 }
 
-// Temporary: hardcoded team ID until team selection is implemented
-const TEAM_ID = 1
-
 export function TeamPage() {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
+
+  const { data: team, isLoading: teamLoading } = useQuery({
+    queryKey: ['team-me'],
+    queryFn: fetchMyTeam,
+    retry: false,
+  })
+
+  if (teamLoading) {
+    return (
+      <div className="p-4">
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      </div>
+    )
+  }
+
+  if (!team) {
+    return <NoTeamView onTeamCreated={(t) => {
+      queryClient.setQueryData(['team-me'], t)
+    }} onJoinTeam={() => void navigate('/join')} />
+  }
+
+  return <TeamView team={team} queryClient={queryClient} />
+}
+
+function NoTeamView({
+  onTeamCreated,
+  onJoinTeam,
+}: {
+  onTeamCreated: (team: Team) => void
+  onJoinTeam: () => void
+}) {
+  const [teamName, setTeamName] = React.useState('')
+  const [showCreate, setShowCreate] = React.useState(false)
+
+  const createMutation = useMutation({
+    mutationFn: createTeam,
+    onSuccess: onTeamCreated,
+  })
+
+  function handleCreate(e: React.FormEvent) {
+    e.preventDefault()
+    const name = teamName.trim()
+    if (!name) return
+    createMutation.mutate(name)
+  }
+
+  return (
+    <div className="p-4">
+      <h1 className="text-xl font-semibold mb-6">Team</h1>
+      <div className="flex flex-col items-center justify-center py-12 gap-4 text-center">
+        <p className="text-sm font-medium">You're not on a team yet</p>
+        <p className="text-xs text-muted-foreground max-w-[240px]">
+          Join an existing team with an invite code, or create a new one.
+        </p>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={onJoinTeam}>
+            Join team
+          </Button>
+          <Button onClick={() => setShowCreate(true)}>
+            Create team
+          </Button>
+        </div>
+
+        {showCreate && (
+          <form onSubmit={handleCreate} className="flex gap-2 mt-2 w-full max-w-xs">
+            <Input
+              placeholder="Team name"
+              value={teamName}
+              onChange={e => setTeamName(e.target.value)}
+              disabled={createMutation.isPending}
+              autoFocus
+            />
+            <Button
+              type="submit"
+              disabled={createMutation.isPending || teamName.trim() === ''}
+            >
+              Create
+            </Button>
+          </form>
+        )}
+
+        {createMutation.isError && (
+          <p className="text-sm text-destructive">
+            {createMutation.error instanceof Error
+              ? createMutation.error.message
+              : 'Something went wrong'}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function TeamView({
+  team,
+  queryClient,
+}: {
+  team: Team
+  queryClient: ReturnType<typeof useQueryClient>
+}) {
   const [copied, setCopied] = React.useState<'code' | 'link' | null>(null)
   const [newTaskTitle, setNewTaskTitle] = React.useState('')
   const addInputRef = React.useRef<HTMLInputElement>(null)
 
   const { data: inviteData, isLoading: inviteLoading, isError: inviteError } = useQuery({
-    queryKey: ['team-invite', TEAM_ID],
-    queryFn: () => fetchTeamInvite(TEAM_ID),
+    queryKey: ['team-invite', team.id],
+    queryFn: () => fetchTeamInvite(team.id),
     retry: false,
   })
 
   const { data: tasks = [], isLoading: tasksLoading } = useQuery({
-    queryKey: ['team-tasks', TEAM_ID],
-    queryFn: () => fetchTeamTasks(TEAM_ID),
+    queryKey: ['team-tasks', team.id],
+    queryFn: () => fetchTeamTasks(team.id),
     retry: false,
   })
 
   const addTaskMutation = useMutation({
-    mutationFn: (title: string) => createTeamTask(TEAM_ID, title),
+    mutationFn: (title: string) => createTeamTask(team.id, title),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['team-tasks', TEAM_ID] })
+      void queryClient.invalidateQueries({ queryKey: ['team-tasks', team.id] })
       setNewTaskTitle('')
     },
   })

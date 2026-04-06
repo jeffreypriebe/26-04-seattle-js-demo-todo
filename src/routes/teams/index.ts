@@ -17,6 +17,10 @@ const createTeamBodySchema = z.object({
   name: z.string().min(1),
 })
 
+const joinTeamBodySchema = z.object({
+  code: z.string().min(1),
+})
+
 function generateInviteCode(): string {
   return crypto.randomBytes(4).toString('hex').toUpperCase()
 }
@@ -228,6 +232,56 @@ export function teamRoutes(fastify: FastifyInstance): void {
           updated_at: t.updatedAt.toISOString(),
         })),
       )
+    },
+  )
+
+  fastify.post(
+    '/join',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      const result = joinTeamBodySchema.safeParse(request.body)
+      if (!result.success) {
+        return await reply
+          .status(HTTP_BAD_REQUEST)
+          .send({ error: 'Invalid request body' })
+      }
+
+      const { code } = result.data
+      const { id: userId } = request.user
+
+      const [team] = await db
+        .select()
+        .from(teams)
+        .where(eq(teams.inviteCode, code))
+        .limit(1)
+
+      if (!team) {
+        return await reply
+          .status(HTTP_NOT_FOUND)
+          .send({ error: 'Invalid invite code' })
+      }
+
+      const [existingMembership] = await db
+        .select()
+        .from(teamMembers)
+        .where(eq(teamMembers.userId, userId))
+        .limit(1)
+
+      if (existingMembership) {
+        return await reply
+          .status(HTTP_CONFLICT)
+          .send({ error: 'User is already a member of a team' })
+      }
+
+      await db.insert(teamMembers).values({ teamId: team.id, userId })
+
+      return await reply.status(HTTP_OK).send({
+        id: team.id,
+        name: team.name,
+        invite_code: team.inviteCode,
+        created_at: team.createdAt.toISOString(),
+        updated_at: team.updatedAt.toISOString(),
+      })
     },
   )
 

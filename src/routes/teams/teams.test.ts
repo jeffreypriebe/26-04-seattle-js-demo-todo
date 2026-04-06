@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import bcrypt from 'bcryptjs'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { buildApp } from '../../app'
 import { db } from '../../db/index'
 import { users, teams, teamMembers, teamTasks } from '../../db/schema'
@@ -216,6 +216,108 @@ describe('GET /teams/me', () => {
     const body = res.json()
     expect(body.name).toBe('My Team')
     expect(typeof body.invite_code).toBe('string')
+    await app.close()
+  })
+})
+
+describe('POST /teams/join', () => {
+  it('returns 401 when no auth token', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const res = await app.inject({
+      method: 'POST',
+      url: '/teams/join',
+      payload: { code: TEST_INVITE_CODE },
+    })
+    expect(res.statusCode).toBe(401)
+    await app.close()
+  })
+
+  it('returns 400 when code is missing', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const { accessToken } = await createUserAndLogin(
+      app,
+      `join-no-code-${Date.now()}@example.com`,
+    )
+    const res = await app.inject({
+      method: 'POST',
+      url: '/teams/join',
+      headers: { authorization: `Bearer ${accessToken}` },
+      payload: {},
+    })
+    expect(res.statusCode).toBe(400)
+    await app.close()
+  })
+
+  it('returns 404 for unknown invite code', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const { accessToken } = await createUserAndLogin(
+      app,
+      `join-bad-code-${Date.now()}@example.com`,
+    )
+    const res = await app.inject({
+      method: 'POST',
+      url: '/teams/join',
+      headers: { authorization: `Bearer ${accessToken}` },
+      payload: { code: 'NONEXISTENT' },
+    })
+    expect(res.statusCode).toBe(404)
+    await app.close()
+  })
+
+  it('returns 409 when user is already a member of a team', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    // TEST_EMAIL user is already a member of testTeamId
+    const token = await loginAndGetToken(app, TEST_EMAIL, TEST_PASSWORD)
+    const res = await app.inject({
+      method: 'POST',
+      url: '/teams/join',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { code: TEST_INVITE_CODE },
+    })
+    expect(res.statusCode).toBe(409)
+    await app.close()
+  })
+
+  it('joins team and returns 200 with team info', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const email = `join-success-${Date.now()}@example.com`
+    const { accessToken, userId } = await createUserAndLogin(app, email)
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/teams/join',
+      headers: { authorization: `Bearer ${accessToken}` },
+      payload: { code: TEST_INVITE_CODE },
+    })
+
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.id).toBe(testTeamId)
+    expect(body.name).toBe('Test Team')
+    expect(body.invite_code).toBe(TEST_INVITE_CODE)
+
+    // Verify membership was created
+    const [membership] = await db
+      .select()
+      .from(teamMembers)
+      .where(
+        and(eq(teamMembers.teamId, testTeamId), eq(teamMembers.userId, userId)),
+      )
+      .limit(1)
+    expect(membership).toBeDefined()
+
+    // Cleanup
+    await db
+      .delete(teamMembers)
+      .where(
+        and(eq(teamMembers.teamId, testTeamId), eq(teamMembers.userId, userId)),
+      )
+
     await app.close()
   })
 })

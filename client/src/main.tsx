@@ -8,6 +8,7 @@ import { LoginPage } from './pages/LoginPage'
 import { SignupPage } from './pages/SignupPage'
 import { PersonalPage } from './pages/PersonalPage'
 import { TeamPage } from './pages/TeamPage'
+import { JoinTeamPage } from './pages/JoinTeamPage'
 
 const queryClient = new QueryClient()
 
@@ -19,6 +20,7 @@ createRoot(document.getElementById('root')!).render(
         {/* Auth routes — full-screen, no bottom nav */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/join" element={<JoinTeamPage />} />
 
         {/* App shell with bottom nav */}
         <Route element={<AppShell />}>
