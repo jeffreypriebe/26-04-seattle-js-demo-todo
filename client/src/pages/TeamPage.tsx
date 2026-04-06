@@ -363,16 +363,18 @@ function TeamView({
                 >
                   {task.title}
                 </span>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {task.creator_name}
-                </p>
+                {task.creator_name && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {task.creator_name}
+                  </p>
+                )}
               </div>
               <Button
                 variant="ghost"
                 size="sm"
                 className="shrink-0 text-muted-foreground hover:text-destructive"
                 aria-label={`Delete task: ${task.title}`}
-                disabled={deleteTaskMutation.isPending}
+                disabled={deleteTaskMutation.isPending && deleteTaskMutation.variables === task.id}
                 onClick={() => deleteTaskMutation.mutate(task.id)}
               >
                 ✕
