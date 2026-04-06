@@ -52,9 +52,24 @@ async function toggleTask(vars: {
   return res.json() as Promise<Task>
 }
 
+async function updateTaskPosition(vars: {
+  id: number
+  position: number
+}): Promise<Task> {
+  const res = await apiFetch(`/tasks/${vars.id}/position`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ position: vars.position }),
+  })
+  if (!res.ok) throw new Error('Failed to update task position')
+  return res.json() as Promise<Task>
+}
+
 export function PersonalPage() {
   const queryClient = useQueryClient()
   const [dueDateOnly, setDueDateOnly] = React.useState(false)
+  const [draggedId, setDraggedId] = React.useState<number | null>(null)
+  const [dragOverId, setDragOverId] = React.useState<number | null>(null)
 
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ['tasks'],
@@ -134,8 +149,67 @@ export function PersonalPage() {
     },
   })
 
+  const positionMutation = useMutation({
+    mutationFn: updateTaskPosition,
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    },
+  })
+
   function handleAdd(title: string, dueDate?: string) {
     addMutation.mutate({ title, due_date: dueDate })
+  }
+
+  function handleDragStart(id: number) {
+    setDraggedId(id)
+  }
+
+  function handleDragOver(e: React.DragEvent, id: number) {
+    e.preventDefault()
+    if (id !== draggedId) {
+      setDragOverId(id)
+    }
+  }
+
+  function handleDrop(e: React.DragEvent, targetId: number) {
+    e.preventDefault()
+    if (draggedId === null || draggedId === targetId) {
+      setDraggedId(null)
+      setDragOverId(null)
+      return
+    }
+
+    const current = queryClient.getQueryData<Task[]>(['tasks']) ?? []
+    const fromIndex = current.findIndex(t => t.id === draggedId)
+    const toIndex = current.findIndex(t => t.id === targetId)
+
+    if (fromIndex === -1 || toIndex === -1) {
+      setDraggedId(null)
+      setDragOverId(null)
+      return
+    }
+
+    // Reorder the list
+    const reordered = [...current]
+    const [moved] = reordered.splice(fromIndex, 1)
+    reordered.splice(toIndex, 0, moved)
+
+    // Assign new positions based on index
+    const updated = reordered.map((t, i) => ({ ...t, position: i }))
+
+    // Optimistic update
+    queryClient.setQueryData<Task[]>(['tasks'], updated)
+
+    setDraggedId(null)
+    setDragOverId(null)
+
+    // Persist only the moved task's new position
+    positionMutation.mutate({ id: draggedId, position: toIndex })
+  }
+
+  function handleDragEnd() {
+    setDraggedId(null)
+    setDragOverId(null)
   }
 
   const visibleTasks = dueDateOnly
@@ -209,7 +283,17 @@ export function PersonalPage() {
         {visibleTasks.map((task) => (
           <li
             key={task.id}
-            className="flex items-center gap-3 rounded-lg border border-border bg-card p-3"
+            draggable
+            onDragStart={() => handleDragStart(task.id)}
+            onDragOver={(e) => handleDragOver(e, task.id)}
+            onDrop={(e) => handleDrop(e, task.id)}
+            onDragEnd={handleDragEnd}
+            className={cn(
+              'flex items-center gap-3 rounded-lg border border-border bg-card p-3',
+              'cursor-grab active:cursor-grabbing transition-opacity',
+              draggedId === task.id && 'opacity-40',
+              dragOverId === task.id && draggedId !== task.id && 'ring-2 ring-primary/50',
+            )}
           >
             <button
               type="button"
