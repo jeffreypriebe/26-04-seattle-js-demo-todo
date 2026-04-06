@@ -41,6 +41,12 @@ cp .env.example .env
 
 ### Run
 
+**API server** (Fastify, port 3001):
+
+```bash
+yarn dev
+```
+
 **React client** (Vite dev server, port 5173):
 
 ```bash
@@ -48,7 +54,7 @@ cd client
 npm run dev
 ```
 
-Open http://localhost:5173 in your browser.
+Open http://localhost:5173 in your browser. The Vite dev server proxies `/auth` and `/tasks` to the API automatically — start both servers for full functionality.
 
 ## Testing
 
