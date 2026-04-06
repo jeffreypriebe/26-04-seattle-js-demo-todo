@@ -4,6 +4,7 @@ import jwtPlugin from '@fastify/jwt'
 import cookiePlugin from '@fastify/cookie'
 import { authRoutes } from './routes/auth/index'
 import { taskRoutes } from './routes/tasks/index'
+import { teamRoutes } from './routes/teams/index'
 import { authenticateDecorator } from './plugins/authenticate'
 import { passwordResetRoutes } from './auth/password-reset'
 
@@ -33,6 +34,7 @@ export function buildApp(
   fastify.register(authRoutes, { prefix: '/auth' })
   fastify.register(passwordResetRoutes)
   fastify.register(taskRoutes, { prefix: '/tasks' })
+  fastify.register(teamRoutes, { prefix: '/teams' })
 
   return fastify
 }
