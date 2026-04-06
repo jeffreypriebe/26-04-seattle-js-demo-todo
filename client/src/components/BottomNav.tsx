@@ -66,16 +66,16 @@ export function BottomNav() {
     >
       <ul className="flex h-[56px] list-none m-0 p-0">
         {NAV_ITEMS.map(({ to, label, icon }) => (
-          <li key={to} className="flex-1">
+          <li key={to} className="flex-1 flex items-center justify-center">
             <NavLink
               to={to}
               className={({ isActive }) =>
                 [
-                  'flex flex-col items-center justify-center w-full h-full min-h-[56px] gap-[2px]',
-                  'text-xs leading-[1.4] select-none',
+                  'flex flex-col items-center justify-center min-h-[56px] gap-[2px]',
+                  'text-xs leading-[1.4] select-none px-4 py-1 rounded-full transition-colors',
                   isActive
-                    ? 'text-[hsl(var(--primary,_221_83%_53%))]'
-                    : 'text-[hsl(var(--muted-foreground,_215_16%_47%))]',
+                    ? 'text-primary bg-primary/10 font-medium'
+                    : 'text-muted-foreground',
                 ].join(' ')
               }
             >
