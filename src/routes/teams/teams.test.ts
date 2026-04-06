@@ -596,3 +596,245 @@ describe('POST /teams/:id/tasks', () => {
     await app.close()
   })
 })
+
+describe('PATCH /teams/:id/tasks/:taskId', () => {
+  it('returns 401 when no auth token', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/teams/${testTeamId}/tasks/1`,
+    })
+    expect(res.statusCode).toBe(401)
+    await app.close()
+  })
+
+  it('returns 403 when user is not a team member', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const token = await loginAndGetToken(app, OTHER_EMAIL, TEST_PASSWORD)
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/teams/${testTeamId}/tasks/1`,
+      headers: { authorization: `Bearer ${token}` },
+    })
+    expect(res.statusCode).toBe(403)
+    await app.close()
+  })
+
+  it('returns 404 for non-existent task', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const token = await loginAndGetToken(app, TEST_EMAIL, TEST_PASSWORD)
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/teams/${testTeamId}/tasks/999999`,
+      headers: { authorization: `Bearer ${token}` },
+    })
+    expect(res.statusCode).toBe(404)
+    await app.close()
+  })
+
+  it('toggles task completed status', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const token = await loginAndGetToken(app, TEST_EMAIL, TEST_PASSWORD)
+
+    const [testUser] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, TEST_EMAIL))
+      .limit(1)
+
+    await db.delete(teamTasks).where(eq(teamTasks.teamId, testTeamId))
+    const [task] = await db
+      .insert(teamTasks)
+      .values({
+        teamId: testTeamId,
+        createdByUserId: testUser.id,
+        title: 'Toggle me',
+      })
+      .returning()
+
+    expect(task.completed).toBe(false)
+
+    const res1 = await app.inject({
+      method: 'PATCH',
+      url: `/teams/${testTeamId}/tasks/${task.id}`,
+      headers: { authorization: `Bearer ${token}` },
+    })
+    expect(res1.statusCode).toBe(200)
+    expect(res1.json().completed).toBe(true)
+
+    const res2 = await app.inject({
+      method: 'PATCH',
+      url: `/teams/${testTeamId}/tasks/${task.id}`,
+      headers: { authorization: `Bearer ${token}` },
+    })
+    expect(res2.statusCode).toBe(200)
+    expect(res2.json().completed).toBe(false)
+
+    await app.close()
+  })
+
+  it('any team member can toggle any task', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+
+    const [testUser] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, TEST_EMAIL))
+      .limit(1)
+    const [otherUser] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, OTHER_EMAIL))
+      .limit(1)
+
+    await db
+      .insert(teamMembers)
+      .values({ teamId: testTeamId, userId: otherUser.id })
+      .onConflictDoNothing()
+
+    await db.delete(teamTasks).where(eq(teamTasks.teamId, testTeamId))
+    const [task] = await db
+      .insert(teamTasks)
+      .values({
+        teamId: testTeamId,
+        createdByUserId: testUser.id,
+        title: 'Member toggle',
+      })
+      .returning()
+
+    const otherToken = await loginAndGetToken(app, OTHER_EMAIL, TEST_PASSWORD)
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/teams/${testTeamId}/tasks/${task.id}`,
+      headers: { authorization: `Bearer ${otherToken}` },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().completed).toBe(true)
+
+    await db.delete(teamMembers).where(eq(teamMembers.userId, otherUser.id))
+    await app.close()
+  })
+})
+
+describe('DELETE /teams/:id/tasks/:taskId', () => {
+  it('returns 401 when no auth token', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/teams/${testTeamId}/tasks/1`,
+    })
+    expect(res.statusCode).toBe(401)
+    await app.close()
+  })
+
+  it('returns 403 when user is not a team member', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const token = await loginAndGetToken(app, OTHER_EMAIL, TEST_PASSWORD)
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/teams/${testTeamId}/tasks/1`,
+      headers: { authorization: `Bearer ${token}` },
+    })
+    expect(res.statusCode).toBe(403)
+    await app.close()
+  })
+
+  it('returns 404 for non-existent task', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const token = await loginAndGetToken(app, TEST_EMAIL, TEST_PASSWORD)
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/teams/${testTeamId}/tasks/999999`,
+      headers: { authorization: `Bearer ${token}` },
+    })
+    expect(res.statusCode).toBe(404)
+    await app.close()
+  })
+
+  it('deletes the task and returns 200 with id', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const token = await loginAndGetToken(app, TEST_EMAIL, TEST_PASSWORD)
+
+    const [testUser] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, TEST_EMAIL))
+      .limit(1)
+
+    const [task] = await db
+      .insert(teamTasks)
+      .values({
+        teamId: testTeamId,
+        createdByUserId: testUser.id,
+        title: 'Delete me',
+      })
+      .returning()
+
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/teams/${testTeamId}/tasks/${task.id}`,
+      headers: { authorization: `Bearer ${token}` },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().id).toBe(task.id)
+
+    const [deleted] = await db
+      .select()
+      .from(teamTasks)
+      .where(eq(teamTasks.id, task.id))
+      .limit(1)
+    expect(deleted).toBeUndefined()
+
+    await app.close()
+  })
+
+  it('any team member can delete any task', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+
+    const [testUser] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, TEST_EMAIL))
+      .limit(1)
+    const [otherUser] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, OTHER_EMAIL))
+      .limit(1)
+
+    await db
+      .insert(teamMembers)
+      .values({ teamId: testTeamId, userId: otherUser.id })
+      .onConflictDoNothing()
+
+    const [task] = await db
+      .insert(teamTasks)
+      .values({
+        teamId: testTeamId,
+        createdByUserId: testUser.id,
+        title: 'Other deletes me',
+      })
+      .returning()
+
+    const otherToken = await loginAndGetToken(app, OTHER_EMAIL, TEST_PASSWORD)
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/teams/${testTeamId}/tasks/${task.id}`,
+      headers: { authorization: `Bearer ${otherToken}` },
+    })
+    expect(res.statusCode).toBe(200)
+
+    await db.delete(teamMembers).where(eq(teamMembers.userId, otherUser.id))
+    await app.close()
+  })
+})

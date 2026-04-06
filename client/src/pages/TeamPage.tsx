@@ -65,6 +65,25 @@ async function createTeamTask(teamId: number, title: string): Promise<TeamTask> 
   return res.json() as Promise<TeamTask>
 }
 
+async function toggleTeamTask(teamId: number, taskId: number): Promise<TeamTask> {
+  const res = await apiFetch(`/teams/${teamId}/tasks/${taskId}`, {
+    method: 'PATCH',
+  })
+  if (!res.ok) throw new Error('Failed to toggle team task')
+  return res.json() as Promise<TeamTask>
+}
+
+async function deleteTeamTask(teamId: number, taskId: number): Promise<void> {
+  const res = await apiFetch(`/teams/${teamId}/tasks/${taskId}`, {
+    method: 'DELETE',
+  })
+  if (!res.ok) throw new Error('Failed to delete team task')
+}
+
+// Temporary: hardcoded team ID until team selection is implemented
+const TEAM_ID = 1
+
+
 export function TeamPage() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -192,6 +211,46 @@ function TeamView({
     },
   })
 
+  const toggleTaskMutation = useMutation({
+    mutationFn: (taskId: number) => toggleTeamTask(TEAM_ID, taskId),
+    onMutate: async (taskId: number) => {
+      await queryClient.cancelQueries({ queryKey: ['team-tasks', TEAM_ID] })
+      const previous = queryClient.getQueryData<TeamTask[]>(['team-tasks', TEAM_ID])
+      queryClient.setQueryData<TeamTask[]>(['team-tasks', TEAM_ID], old =>
+        old?.map(t => t.id === taskId ? { ...t, completed: !t.completed } : t) ?? []
+      )
+      return { previous }
+    },
+    onError: (_err, _taskId, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(['team-tasks', TEAM_ID], context.previous)
+      }
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['team-tasks', TEAM_ID] })
+    },
+  })
+
+  const deleteTaskMutation = useMutation({
+    mutationFn: (taskId: number) => deleteTeamTask(TEAM_ID, taskId),
+    onMutate: async (taskId: number) => {
+      await queryClient.cancelQueries({ queryKey: ['team-tasks', TEAM_ID] })
+      const previous = queryClient.getQueryData<TeamTask[]>(['team-tasks', TEAM_ID])
+      queryClient.setQueryData<TeamTask[]>(['team-tasks', TEAM_ID], old =>
+        old?.filter(t => t.id !== taskId) ?? []
+      )
+      return { previous }
+    },
+    onError: (_err, _taskId, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(['team-tasks', TEAM_ID], context.previous)
+      }
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['team-tasks', TEAM_ID] })
+    },
+  })
+
   async function copyToClipboard(text: string, type: 'code' | 'link') {
     try {
       await navigator.clipboard.writeText(text)
@@ -274,12 +333,38 @@ function TeamView({
           {tasks.map(task => (
             <li
               key={task.id}
-              className="rounded-lg border border-border bg-card p-3"
+              className="flex items-start gap-3 rounded-lg border border-border bg-card p-3"
             >
-              <p className="text-sm leading-snug">{task.title}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {task.creator_name}
-              </p>
+              <button
+                type="button"
+                aria-label={task.completed ? 'Mark incomplete' : 'Mark complete'}
+                onClick={() => toggleTaskMutation.mutate(task.id)}
+                className="mt-0.5 shrink-0 h-4 w-4 rounded border border-border flex items-center justify-center transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              >
+                {task.completed && (
+                  <svg viewBox="0 0 16 16" fill="none" className="h-3 w-3 text-primary" aria-hidden="true">
+                    <path d="M3 8l3.5 3.5L13 4.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </button>
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm leading-snug${task.completed ? ' line-through text-muted-foreground' : ''}`}>
+                  {task.title}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {task.creator_name}
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="Delete task"
+                onClick={() => deleteTaskMutation.mutate(task.id)}
+                className="shrink-0 text-muted-foreground hover:text-destructive transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 rounded"
+              >
+                <svg viewBox="0 0 16 16" fill="none" className="h-4 w-4" aria-hidden="true">
+                  <path d="M2 4h12M5 4V2h6v2M6 7v5M10 7v5M3 4l1 9h8l1-9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
             </li>
           ))}
         </ul>

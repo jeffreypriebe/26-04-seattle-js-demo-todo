@@ -4,7 +4,11 @@ import crypto from 'crypto'
 import { and, eq } from 'drizzle-orm'
 import { db } from '../../db/index'
 import { teams, teamMembers, teamTasks, users } from '../../db/schema'
-import { teamParamsSchema, createTeamTaskBodySchema } from './schemas'
+import {
+  teamParamsSchema,
+  teamTaskParamsSchema,
+  createTeamTaskBodySchema,
+} from './schemas'
 
 const HTTP_OK = 200
 const HTTP_CREATED = 201
@@ -350,6 +354,136 @@ export function teamRoutes(fastify: FastifyInstance): void {
         created_at: created.createdAt.toISOString(),
         updated_at: created.updatedAt.toISOString(),
       })
+    },
+  )
+
+  fastify.patch(
+    '/:id/tasks/:taskId',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      const paramsResult = teamTaskParamsSchema.safeParse(request.params)
+      if (!paramsResult.success) {
+        return await reply
+          .status(HTTP_BAD_REQUEST)
+          .send({ error: 'Invalid params' })
+      }
+
+      const { id: teamId, taskId } = paramsResult.data
+      const { id: userId } = request.user
+
+      const [team] = await db
+        .select()
+        .from(teams)
+        .where(eq(teams.id, teamId))
+        .limit(1)
+
+      if (!team) {
+        return await reply
+          .status(HTTP_NOT_FOUND)
+          .send({ error: 'Team not found' })
+      }
+
+      const [membership] = await db
+        .select()
+        .from(teamMembers)
+        .where(
+          and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId)),
+        )
+        .limit(1)
+
+      if (!membership) {
+        return await reply.status(HTTP_FORBIDDEN).send({ error: 'Forbidden' })
+      }
+
+      const [task] = await db
+        .select()
+        .from(teamTasks)
+        .where(and(eq(teamTasks.id, taskId), eq(teamTasks.teamId, teamId)))
+        .limit(1)
+
+      if (!task) {
+        return await reply
+          .status(HTTP_NOT_FOUND)
+          .send({ error: 'Task not found' })
+      }
+
+      const now = new Date()
+      const [updated] = await db
+        .update(teamTasks)
+        .set({ completed: !task.completed, updatedAt: now })
+        .where(eq(teamTasks.id, taskId))
+        .returning()
+
+      const [creator] = await db
+        .select({ email: users.email })
+        .from(users)
+        .where(eq(users.id, updated.createdByUserId))
+        .limit(1)
+
+      return await reply.status(HTTP_OK).send({
+        id: updated.id,
+        title: updated.title,
+        completed: updated.completed,
+        creator_name: creator.email,
+        created_at: updated.createdAt.toISOString(),
+        updated_at: updated.updatedAt.toISOString(),
+      })
+    },
+  )
+
+  fastify.delete(
+    '/:id/tasks/:taskId',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      const paramsResult = teamTaskParamsSchema.safeParse(request.params)
+      if (!paramsResult.success) {
+        return await reply
+          .status(HTTP_BAD_REQUEST)
+          .send({ error: 'Invalid params' })
+      }
+
+      const { id: teamId, taskId } = paramsResult.data
+      const { id: userId } = request.user
+
+      const [team] = await db
+        .select()
+        .from(teams)
+        .where(eq(teams.id, teamId))
+        .limit(1)
+
+      if (!team) {
+        return await reply
+          .status(HTTP_NOT_FOUND)
+          .send({ error: 'Team not found' })
+      }
+
+      const [membership] = await db
+        .select()
+        .from(teamMembers)
+        .where(
+          and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId)),
+        )
+        .limit(1)
+
+      if (!membership) {
+        return await reply.status(HTTP_FORBIDDEN).send({ error: 'Forbidden' })
+      }
+
+      const [task] = await db
+        .select()
+        .from(teamTasks)
+        .where(and(eq(teamTasks.id, taskId), eq(teamTasks.teamId, teamId)))
+        .limit(1)
+
+      if (!task) {
+        return await reply
+          .status(HTTP_NOT_FOUND)
+          .send({ error: 'Task not found' })
+      }
+
+      await db.delete(teamTasks).where(eq(teamTasks.id, taskId))
+
+      return await reply.status(HTTP_OK).send({ id: taskId })
     },
   )
 }
