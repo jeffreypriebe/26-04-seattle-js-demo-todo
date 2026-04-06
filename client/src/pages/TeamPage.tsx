@@ -320,7 +320,10 @@ function TeamView({
           {tasks.map(task => (
             <li
               key={task.id}
-              className="flex items-center gap-3 rounded-lg border border-border bg-card p-3"
+              className={cn(
+                'flex items-center gap-3 rounded-lg border border-border bg-card p-3 transition-opacity',
+                task.completed && 'opacity-40',
+              )}
             >
               <button
                 type="button"

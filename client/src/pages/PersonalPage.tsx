@@ -291,7 +291,8 @@ export function PersonalPage() {
             className={cn(
               'flex items-center gap-3 rounded-lg border border-border bg-card p-3',
               'cursor-grab active:cursor-grabbing transition-opacity',
-              draggedId === task.id && 'opacity-40',
+              task.completed && 'opacity-40',
+              draggedId === task.id && 'opacity-20',
               dragOverId === task.id && draggedId !== task.id && 'ring-2 ring-primary/50',
             )}
           >
