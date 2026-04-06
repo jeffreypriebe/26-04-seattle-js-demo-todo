@@ -401,6 +401,153 @@ describe('PATCH /tasks/:id', () => {
   })
 })
 
+describe('PATCH /tasks/:id/position', () => {
+  it('returns 401 when no auth token', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const res = await app.inject({
+      method: 'PATCH',
+      url: '/tasks/1/position',
+      payload: { position: 5 },
+    })
+    expect(res.statusCode).toBe(401)
+    await app.close()
+  })
+
+  it('returns 400 for invalid body (missing position)', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const token = await loginAndGetToken(app)
+    const created = await app.inject({
+      method: 'POST',
+      url: '/tasks',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { title: 'Position test task' },
+    })
+    const { id } = created.json()
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/tasks/${id}/position`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {},
+    })
+    expect(res.statusCode).toBe(400)
+    await app.close()
+  })
+
+  it('updates position and returns updated task', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const token = await loginAndGetToken(app)
+    const created = await app.inject({
+      method: 'POST',
+      url: '/tasks',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { title: 'Reorder me' },
+    })
+    const { id } = created.json()
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/tasks/${id}/position`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { position: 42 },
+    })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.id).toBe(id)
+    expect(body.position).toBe(42)
+    await app.close()
+  })
+
+  it('position update is reflected in GET /tasks', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const freshEmail = `position-order-${Date.now()}@example.com`
+    const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10)
+    const [user] = await db
+      .insert(users)
+      .values({ email: freshEmail, passwordHash })
+      .returning({ id: users.id })
+
+    await db.insert(todos).values([
+      { userId: user.id, title: 'Task A', position: 0 },
+      { userId: user.id, title: 'Task B', position: 1 },
+    ])
+
+    const loginRes = await app.inject({
+      method: 'POST',
+      url: '/auth/login',
+      payload: { email: freshEmail, password: TEST_PASSWORD },
+    })
+    const { accessToken } = loginRes.json()
+
+    const tasksRes = await app.inject({
+      method: 'GET',
+      url: '/tasks',
+      headers: { authorization: `Bearer ${accessToken}` },
+    })
+    const taskA = tasksRes
+      .json()
+      .find((t: { title: string }) => t.title === 'Task A')
+
+    await app.inject({
+      method: 'PATCH',
+      url: `/tasks/${taskA.id}/position`,
+      headers: { authorization: `Bearer ${accessToken}` },
+      payload: { position: 99 },
+    })
+
+    const afterRes = await app.inject({
+      method: 'GET',
+      url: '/tasks',
+      headers: { authorization: `Bearer ${accessToken}` },
+    })
+    const updatedA = afterRes
+      .json()
+      .find((t: { title: string }) => t.title === 'Task A')
+    expect(updatedA.position).toBe(99)
+    await app.close()
+  })
+
+  it("returns 403 when updating another user's task position", async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const ownerToken = await loginAndGetToken(app)
+    const otherToken = await loginAndGetToken(app, OTHER_EMAIL, OTHER_PASSWORD)
+
+    const created = await app.inject({
+      method: 'POST',
+      url: '/tasks',
+      headers: { authorization: `Bearer ${ownerToken}` },
+      payload: { title: 'Owner task' },
+    })
+    const { id } = created.json()
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/tasks/${id}/position`,
+      headers: { authorization: `Bearer ${otherToken}` },
+      payload: { position: 5 },
+    })
+    expect(res.statusCode).toBe(403)
+    await app.close()
+  })
+
+  it('returns 404 for non-existent task', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const token = await loginAndGetToken(app)
+    const res = await app.inject({
+      method: 'PATCH',
+      url: '/tasks/999999/position',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { position: 5 },
+    })
+    expect(res.statusCode).toBe(404)
+    await app.close()
+  })
+})
+
 describe('DELETE /tasks/:id', () => {
   it('returns 401 when no auth token', async () => {
     const app = buildApp({ jwtSecret: JWT_SECRET })
