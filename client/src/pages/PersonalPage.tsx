@@ -1,3 +1,4 @@
+import * as React from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api'
 import { AddTaskDialog } from '@/components/AddTaskDialog'
@@ -53,6 +54,7 @@ async function toggleTask(vars: {
 
 export function PersonalPage() {
   const queryClient = useQueryClient()
+  const [dueDateOnly, setDueDateOnly] = React.useState(false)
 
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ['tasks'],
@@ -136,22 +138,75 @@ export function PersonalPage() {
     addMutation.mutate({ title, due_date: dueDate })
   }
 
+  const visibleTasks = dueDateOnly
+    ? tasks.filter((t) => t.due_date !== null)
+    : tasks
+
   return (
     <div className="p-4 pb-8">
-      <h1 className="text-xl font-semibold mb-4">Personal</h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-xl font-semibold">Personal</h1>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={dueDateOnly}
+          aria-label="Show only tasks with due dates"
+          onClick={() => setDueDateOnly((v) => !v)}
+          className={cn(
+            'flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border transition-colors',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+            dueDateOnly
+              ? 'bg-primary text-primary-foreground border-primary'
+              : 'bg-transparent text-muted-foreground border-border hover:border-foreground/40',
+          )}
+        >
+          <svg viewBox="0 0 12 12" fill="none" className="h-3 w-3" aria-hidden="true">
+            <rect x="1" y="2" width="10" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+            <path d="M4 1v2M8 1v2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            <path d="M1 5h10" stroke="currentColor" strokeWidth="1.2" />
+          </svg>
+          Due date
+        </button>
+      </div>
 
       {isLoading && (
         <p className="text-muted-foreground text-sm">Loading tasks…</p>
       )}
 
-      {!isLoading && tasks.length === 0 && (
-        <p className="text-muted-foreground text-sm">
-          No tasks yet. Tap + to add one.
-        </p>
+      {!isLoading && visibleTasks.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+          <svg
+            viewBox="0 0 48 48"
+            fill="none"
+            className="h-12 w-12 text-muted-foreground/40"
+            aria-hidden="true"
+          >
+            <rect x="6" y="10" width="36" height="32" rx="4" stroke="currentColor" strokeWidth="2.5" />
+            <path d="M16 6v8M32 6v8" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+            <path d="M6 22h36" stroke="currentColor" strokeWidth="2.5" />
+            <circle cx="24" cy="33" r="5" stroke="currentColor" strokeWidth="2.5" />
+            <path d="M24 30v3l2 1.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          {dueDateOnly ? (
+            <>
+              <p className="text-sm font-medium text-foreground">No tasks with due dates</p>
+              <p className="text-xs text-muted-foreground max-w-[200px]">
+                Add a due date when creating a task, or turn off the filter to see all tasks.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-medium text-foreground">No tasks yet</p>
+              <p className="text-xs text-muted-foreground">
+                Tap + to add your first task.
+              </p>
+            </>
+          )}
+        </div>
       )}
 
       <ul className="space-y-2">
-        {tasks.map((task) => (
+        {visibleTasks.map((task) => (
           <li
             key={task.id}
             className="flex items-center gap-3 rounded-lg border border-border bg-card p-3"
