@@ -9,6 +9,12 @@ import { runMigrations } from '../../db/migrate'
 const TEST_PASSWORD = 'password123'
 const JWT_SECRET = 'test-secret'
 
+// Shared state for invite tests
+const TEST_EMAIL = 'team-invite-test@example.com'
+const OTHER_EMAIL = 'team-invite-other@example.com'
+const TEST_INVITE_CODE = 'test-invite-code-abc123'
+let testTeamId: number
+
 async function createUserAndLogin(
   app: Awaited<ReturnType<typeof buildApp>>,
   email: string,
@@ -28,8 +34,50 @@ async function createUserAndLogin(
   return { accessToken: body.accessToken, userId: user.id }
 }
 
+async function loginAndGetToken(
+  app: Awaited<ReturnType<typeof buildApp>>,
+  email: string,
+  password: string,
+): Promise<string> {
+  const res = await app.inject({
+    method: 'POST',
+    url: '/auth/login',
+    payload: { email, password },
+  })
+  return res.json().accessToken as string
+}
+
 beforeAll(async () => {
   runMigrations()
+
+  const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10)
+
+  await db.delete(users).where(eq(users.email, TEST_EMAIL))
+  const [user] = await db
+    .insert(users)
+    .values({ email: TEST_EMAIL, passwordHash })
+    .returning({ id: users.id })
+
+  await db.delete(users).where(eq(users.email, OTHER_EMAIL))
+  await db
+    .insert(users)
+    .values({ email: OTHER_EMAIL, passwordHash })
+    .returning({ id: users.id })
+
+  // Delete any leftover team with this invite code
+  await db.delete(teams).where(eq(teams.inviteCode, TEST_INVITE_CODE))
+
+  const [team] = await db
+    .insert(teams)
+    .values({ name: 'Test Team', inviteCode: TEST_INVITE_CODE })
+    .returning({ id: teams.id })
+  testTeamId = team.id
+
+  // Add testUser as member, but NOT otherUser
+  await db.delete(teamMembers).where(eq(teamMembers.teamId, testTeamId))
+  await db
+    .insert(teamMembers)
+    .values({ teamId: testTeamId, userId: user.id })
 })
 
 describe('POST /teams', () => {
@@ -170,6 +218,75 @@ describe('GET /teams/me', () => {
     const body = res.json()
     expect(body.name).toBe('My Team')
     expect(typeof body.invite_code).toBe('string')
+    await app.close()
+  })
+})
+
+describe('GET /teams/:id/invite', () => {
+  it('returns 401 when no auth token', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const res = await app.inject({
+      method: 'GET',
+      url: `/teams/${testTeamId}/invite`,
+    })
+    expect(res.statusCode).toBe(401)
+    await app.close()
+  })
+
+  it('returns 400 for invalid team id', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const token = await loginAndGetToken(app, TEST_EMAIL, TEST_PASSWORD)
+    const res = await app.inject({
+      method: 'GET',
+      url: '/teams/not-a-number/invite',
+      headers: { authorization: `Bearer ${token}` },
+    })
+    expect(res.statusCode).toBe(400)
+    await app.close()
+  })
+
+  it('returns 404 for non-existent team', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const token = await loginAndGetToken(app, TEST_EMAIL, TEST_PASSWORD)
+    const res = await app.inject({
+      method: 'GET',
+      url: '/teams/999999/invite',
+      headers: { authorization: `Bearer ${token}` },
+    })
+    expect(res.statusCode).toBe(404)
+    await app.close()
+  })
+
+  it('returns 403 when user is not a team member', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const token = await loginAndGetToken(app, OTHER_EMAIL, TEST_PASSWORD)
+    const res = await app.inject({
+      method: 'GET',
+      url: `/teams/${testTeamId}/invite`,
+      headers: { authorization: `Bearer ${token}` },
+    })
+    expect(res.statusCode).toBe(403)
+    await app.close()
+  })
+
+  it('returns invite_code and invite_link for team member', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const token = await loginAndGetToken(app, TEST_EMAIL, TEST_PASSWORD)
+    const res = await app.inject({
+      method: 'GET',
+      url: `/teams/${testTeamId}/invite`,
+      headers: { authorization: `Bearer ${token}` },
+    })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.invite_code).toBe(TEST_INVITE_CODE)
+    expect(body.invite_link).toContain(TEST_INVITE_CODE)
+    expect(body.invite_link).toContain('/join?code=')
     await app.close()
   })
 })

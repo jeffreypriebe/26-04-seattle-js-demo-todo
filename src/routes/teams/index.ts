@@ -1,14 +1,17 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import crypto from 'crypto'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { db } from '../../db/index'
 import { teams, teamMembers } from '../../db/schema'
+import { teamParamsSchema } from './schemas'
 
 const HTTP_OK = 200
 const HTTP_CREATED = 201
 const HTTP_BAD_REQUEST = 400
 const HTTP_CONFLICT = 409
+const HTTP_NOT_FOUND = 404
+const HTTP_FORBIDDEN = 403
 
 const createTeamBodySchema = z.object({
   name: z.string().min(1),
@@ -112,6 +115,54 @@ export function teamRoutes(fastify: FastifyInstance): void {
         invite_code: team.inviteCode,
         created_at: team.createdAt.toISOString(),
         updated_at: team.updatedAt.toISOString(),
+      })
+    },
+  )
+
+  fastify.get(
+    '/:id/invite',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      const paramsResult = teamParamsSchema.safeParse(request.params)
+      if (!paramsResult.success) {
+        return await reply
+          .status(HTTP_BAD_REQUEST)
+          .send({ error: 'Invalid team id' })
+      }
+
+      const { id: teamId } = paramsResult.data
+      const { id: userId } = request.user
+
+      const [team] = await db
+        .select()
+        .from(teams)
+        .where(eq(teams.id, teamId))
+        .limit(1)
+
+      if (!team) {
+        return await reply
+          .status(HTTP_NOT_FOUND)
+          .send({ error: 'Team not found' })
+      }
+
+      const [membership] = await db
+        .select()
+        .from(teamMembers)
+        .where(
+          and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId)),
+        )
+        .limit(1)
+
+      if (!membership) {
+        return await reply.status(HTTP_FORBIDDEN).send({ error: 'Forbidden' })
+      }
+
+      const baseUrl =
+        process.env.APP_BASE_URL ?? `${request.protocol}://${request.hostname}`
+
+      return await reply.send({
+        invite_code: team.inviteCode,
+        invite_link: `${baseUrl}/join?code=${team.inviteCode}`,
       })
     },
   )
