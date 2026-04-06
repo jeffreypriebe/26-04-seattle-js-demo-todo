@@ -5,6 +5,7 @@ import cookiePlugin from '@fastify/cookie'
 import { authRoutes } from './routes/auth/index'
 import { taskRoutes } from './routes/tasks/index'
 import { authenticateDecorator } from './plugins/authenticate'
+import { passwordResetRoutes } from './auth/password-reset'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -30,6 +31,7 @@ export function buildApp(
   fastify.register(authenticateDecorator)
 
   fastify.register(authRoutes, { prefix: '/auth' })
+  fastify.register(passwordResetRoutes)
   fastify.register(taskRoutes, { prefix: '/tasks' })
 
   return fastify

@@ -11,4 +11,10 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  server: {
+    proxy: {
+      '/auth': 'http://127.0.0.1:3000',
+      '/tasks': 'http://127.0.0.1:3000',
+    },
+  },
 })
