@@ -42,6 +42,160 @@ beforeAll(async () => {
   await db.insert(users).values({ email: OTHER_EMAIL, passwordHash: otherPasswordHash })
 })
 
+describe('GET /tasks', () => {
+  it('returns 401 when no auth token', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const res = await app.inject({ method: 'GET', url: '/tasks' })
+    expect(res.statusCode).toBe(401)
+    await app.close()
+  })
+
+  it('returns empty array when user has no tasks', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    // Use a fresh user with no tasks
+    const freshEmail = `list-tasks-empty-${Date.now()}@example.com`
+    const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10)
+    await db.insert(users).values({ email: freshEmail, passwordHash })
+    const loginRes = await app.inject({
+      method: 'POST',
+      url: '/auth/login',
+      payload: { email: freshEmail, password: TEST_PASSWORD },
+    })
+    const { accessToken } = loginRes.json() as { accessToken: string }
+    const res = await app.inject({
+      method: 'GET',
+      url: '/tasks',
+      headers: { authorization: `Bearer ${accessToken}` },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual([])
+    await app.close()
+  })
+
+  it('returns tasks ordered by due_date ASC with nulls last', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const freshEmail = `list-tasks-order-${Date.now()}@example.com`
+    const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10)
+    const [user] = await db
+      .insert(users)
+      .values({ email: freshEmail, passwordHash })
+      .returning({ id: users.id })
+
+    await db.insert(todos).values([
+      { userId: user.id, title: 'No date', position: 0 },
+      {
+        userId: user.id,
+        title: 'Later',
+        dueDate: new Date('2026-06-01T00:00:00.000Z'),
+        position: 1,
+      },
+      {
+        userId: user.id,
+        title: 'Earlier',
+        dueDate: new Date('2026-05-01T00:00:00.000Z'),
+        position: 2,
+      },
+    ])
+
+    const loginRes = await app.inject({
+      method: 'POST',
+      url: '/auth/login',
+      payload: { email: freshEmail, password: TEST_PASSWORD },
+    })
+    const { accessToken } = loginRes.json() as { accessToken: string }
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/tasks',
+      headers: { authorization: `Bearer ${accessToken}` },
+    })
+    expect(res.statusCode).toBe(200)
+    const body = res.json() as { title: string; due_date: string | null }[]
+    expect(body).toHaveLength(3)
+    expect(body[0].title).toBe('Earlier')
+    expect(body[1].title).toBe('Later')
+    expect(body[2].title).toBe('No date')
+    expect(body[2].due_date).toBeNull()
+    await app.close()
+  })
+
+  it('filters to only tasks with due_date when has_due_date=true', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const freshEmail = `list-tasks-filter-${Date.now()}@example.com`
+    const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10)
+    const [user] = await db
+      .insert(users)
+      .values({ email: freshEmail, passwordHash })
+      .returning({ id: users.id })
+
+    await db.insert(todos).values([
+      { userId: user.id, title: 'No date', position: 0 },
+      {
+        userId: user.id,
+        title: 'Has date',
+        dueDate: new Date('2026-05-01T00:00:00.000Z'),
+        position: 1,
+      },
+    ])
+
+    const loginRes = await app.inject({
+      method: 'POST',
+      url: '/auth/login',
+      payload: { email: freshEmail, password: TEST_PASSWORD },
+    })
+    const { accessToken } = loginRes.json() as { accessToken: string }
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/tasks?has_due_date=true',
+      headers: { authorization: `Bearer ${accessToken}` },
+    })
+    expect(res.statusCode).toBe(200)
+    const body = res.json() as { title: string }[]
+    expect(body).toHaveLength(1)
+    expect(body[0].title).toBe('Has date')
+    await app.close()
+  })
+
+  it('does not return tasks owned by another user', async () => {
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+
+    const email1 = `isolation-user1-${Date.now()}@example.com`
+    const email2 = `isolation-user2-${Date.now()}@example.com`
+    const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10)
+    const [user1] = await db
+      .insert(users)
+      .values({ email: email1, passwordHash })
+      .returning({ id: users.id })
+    await db.insert(users).values({ email: email2, passwordHash })
+
+    await db
+      .insert(todos)
+      .values({ userId: user1.id, title: 'User1 task', position: 0 })
+
+    const loginRes = await app.inject({
+      method: 'POST',
+      url: '/auth/login',
+      payload: { email: email2, password: TEST_PASSWORD },
+    })
+    const { accessToken } = loginRes.json() as { accessToken: string }
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/tasks',
+      headers: { authorization: `Bearer ${accessToken}` },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual([])
+    await app.close()
+  })
+})
+
 describe('POST /tasks', () => {
   it('returns 401 when no auth token', async () => {
     const app = buildApp({ jwtSecret: JWT_SECRET })

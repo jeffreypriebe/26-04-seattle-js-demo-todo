@@ -1,9 +1,10 @@
 import type { FastifyInstance } from 'fastify'
-import { desc, eq } from 'drizzle-orm'
+import { and, desc, eq, isNotNull } from 'drizzle-orm'
 import { db } from '../../db/index'
 import { todos } from '../../db/schema'
 import {
   createTaskBodySchema,
+  listTasksQuerySchema,
   taskParamsSchema,
   updateTaskBodySchema,
 } from './schemas'
@@ -15,6 +16,49 @@ const HTTP_FORBIDDEN = 403
 const HTTP_NOT_FOUND = 404
 
 export function taskRoutes(fastify: FastifyInstance): void {
+  fastify.get(
+    '/',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      const result = listTasksQuerySchema.safeParse(request.query)
+      if (!result.success) {
+        return await reply
+          .status(HTTP_BAD_REQUEST)
+          .send({ error: 'Invalid query parameters' })
+      }
+
+      const hasDueDate = result.data.has_due_date
+      const userId = request.user.id
+
+      const baseQuery = db.select().from(todos)
+      const tasks = await (hasDueDate === true
+        ? baseQuery.where(
+            and(eq(todos.userId, userId), isNotNull(todos.dueDate)),
+          )
+        : baseQuery.where(eq(todos.userId, userId)))
+
+      // Sort: tasks with due_date ASC first, nulls last
+      tasks.sort((a, b) => {
+        if (a.dueDate === null && b.dueDate === null) return 0
+        if (a.dueDate === null) return 1
+        if (b.dueDate === null) return -1
+        return a.dueDate.getTime() - b.dueDate.getTime()
+      })
+
+      return await reply.send(
+        tasks.map(t => ({
+          id: t.id,
+          title: t.title,
+          due_date: t.dueDate !== null ? t.dueDate.toISOString() : null,
+          completed: t.completed,
+          position: t.position,
+          created_at: t.createdAt.toISOString(),
+          updated_at: t.updatedAt.toISOString(),
+        })),
+      )
+    },
+  )
+
   fastify.post(
     '/',
     { preHandler: [fastify.authenticate] },
