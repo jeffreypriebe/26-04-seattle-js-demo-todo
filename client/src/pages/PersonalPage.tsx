@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api'
 import { AddTaskDialog } from '@/components/AddTaskDialog'
+import { Button } from '@/components/ui/button'
 
 interface Task {
   id: number
@@ -29,6 +30,11 @@ async function createTask(body: {
   })
   if (!res.ok) throw new Error('Failed to create task')
   return res.json() as Promise<Task>
+}
+
+async function deleteTask(id: number): Promise<void> {
+  const res = await apiFetch(`/tasks/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error('Failed to delete task')
 }
 
 export function PersonalPage() {
@@ -72,6 +78,26 @@ export function PersonalPage() {
     },
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: deleteTask,
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['tasks'] })
+      const previous = queryClient.getQueryData<Task[]>(['tasks'])
+      queryClient.setQueryData<Task[]>(['tasks'], (old = []) =>
+        old.filter((t) => t.id !== id),
+      )
+      return { previous }
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.previous !== undefined) {
+        queryClient.setQueryData(['tasks'], ctx.previous)
+      }
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    },
+  })
+
   function handleAdd(title: string, dueDate?: string) {
     addMutation.mutate({ title, due_date: dueDate })
   }
@@ -94,7 +120,7 @@ export function PersonalPage() {
         {tasks.map((task) => (
           <li
             key={task.id}
-            className="flex items-start gap-3 rounded-lg border border-border bg-card p-3"
+            className="flex items-center gap-3 rounded-lg border border-border bg-card p-3"
           >
             <span className="flex-1 text-sm leading-snug">{task.title}</span>
             {task.due_date && (
@@ -102,6 +128,16 @@ export function PersonalPage() {
                 {new Date(task.due_date).toLocaleDateString()}
               </span>
             )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="shrink-0 text-muted-foreground hover:text-destructive"
+              aria-label={`Delete task: ${task.title}`}
+              disabled={deleteMutation.isPending}
+              onClick={() => deleteMutation.mutate(task.id)}
+            >
+              ✕
+            </Button>
           </li>
         ))}
       </ul>
