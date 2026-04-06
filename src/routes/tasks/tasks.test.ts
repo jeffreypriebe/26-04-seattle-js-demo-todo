@@ -22,7 +22,7 @@ async function loginAndGetToken(
     url: '/auth/login',
     payload: { email, password },
   })
-  const body = res.json() as { accessToken: string }
+  const body = res.json()
   return body.accessToken
 }
 
@@ -39,7 +39,9 @@ beforeAll(async () => {
 
   const otherPasswordHash = await bcrypt.hash(OTHER_PASSWORD, 10)
   await db.delete(users).where(eq(users.email, OTHER_EMAIL))
-  await db.insert(users).values({ email: OTHER_EMAIL, passwordHash: otherPasswordHash })
+  await db
+    .insert(users)
+    .values({ email: OTHER_EMAIL, passwordHash: otherPasswordHash })
 })
 
 describe('GET /tasks', () => {
@@ -63,7 +65,7 @@ describe('GET /tasks', () => {
       url: '/auth/login',
       payload: { email: freshEmail, password: TEST_PASSWORD },
     })
-    const { accessToken } = loginRes.json() as { accessToken: string }
+    const { accessToken } = loginRes.json()
     const res = await app.inject({
       method: 'GET',
       url: '/tasks',
@@ -105,7 +107,7 @@ describe('GET /tasks', () => {
       url: '/auth/login',
       payload: { email: freshEmail, password: TEST_PASSWORD },
     })
-    const { accessToken } = loginRes.json() as { accessToken: string }
+    const { accessToken } = loginRes.json()
 
     const res = await app.inject({
       method: 'GET',
@@ -113,7 +115,7 @@ describe('GET /tasks', () => {
       headers: { authorization: `Bearer ${accessToken}` },
     })
     expect(res.statusCode).toBe(200)
-    const body = res.json() as { title: string; due_date: string | null }[]
+    const body = res.json()
     expect(body).toHaveLength(3)
     expect(body[0].title).toBe('Earlier')
     expect(body[1].title).toBe('Later')
@@ -147,7 +149,7 @@ describe('GET /tasks', () => {
       url: '/auth/login',
       payload: { email: freshEmail, password: TEST_PASSWORD },
     })
-    const { accessToken } = loginRes.json() as { accessToken: string }
+    const { accessToken } = loginRes.json()
 
     const res = await app.inject({
       method: 'GET',
@@ -155,7 +157,7 @@ describe('GET /tasks', () => {
       headers: { authorization: `Bearer ${accessToken}` },
     })
     expect(res.statusCode).toBe(200)
-    const body = res.json() as { title: string }[]
+    const body = res.json()
     expect(body).toHaveLength(1)
     expect(body[0].title).toBe('Has date')
     await app.close()
@@ -183,7 +185,7 @@ describe('GET /tasks', () => {
       url: '/auth/login',
       payload: { email: email2, password: TEST_PASSWORD },
     })
-    const { accessToken } = loginRes.json() as { accessToken: string }
+    const { accessToken } = loginRes.json()
 
     const res = await app.inject({
       method: 'GET',
@@ -248,15 +250,7 @@ describe('POST /tasks', () => {
       payload: { title: 'Buy groceries' },
     })
     expect(res.statusCode).toBe(201)
-    const body = res.json() as {
-      id: number
-      title: string
-      due_date: string | null
-      completed: boolean
-      position: number
-      created_at: string
-      updated_at: string
-    }
+    const body = res.json()
     expect(body.title).toBe('Buy groceries')
     expect(body.due_date).toBeNull()
     expect(body.completed).toBe(false)
@@ -279,7 +273,7 @@ describe('POST /tasks', () => {
       payload: { title: 'Submit report', due_date: dueDate },
     })
     expect(res.statusCode).toBe(201)
-    const body = res.json() as { title: string; due_date: string | null }
+    const body = res.json()
     expect(body.title).toBe('Submit report')
     expect(body.due_date).toBe(dueDate)
     await app.close()
@@ -302,8 +296,8 @@ describe('POST /tasks', () => {
       headers: { authorization: `Bearer ${token}` },
       payload: { title: 'Task B' },
     })
-    const body1 = res1.json() as { position: number }
-    const body2 = res2.json() as { position: number }
+    const body1 = res1.json()
+    const body2 = res2.json()
     expect(body2.position).toBe(body1.position + 1)
     await app.close()
   })
@@ -333,7 +327,7 @@ describe('PATCH /tasks/:id', () => {
       headers: { authorization: `Bearer ${token}` },
       payload: { title: 'Patch test task' },
     })
-    const { id } = created.json() as { id: number }
+    const { id } = created.json()
     const res = await app.inject({
       method: 'PATCH',
       url: `/tasks/${id}`,
@@ -354,7 +348,7 @@ describe('PATCH /tasks/:id', () => {
       headers: { authorization: `Bearer ${token}` },
       payload: { title: 'Toggle me' },
     })
-    const { id } = created.json() as { id: number }
+    const { id } = created.json()
     const res = await app.inject({
       method: 'PATCH',
       url: `/tasks/${id}`,
@@ -362,13 +356,13 @@ describe('PATCH /tasks/:id', () => {
       payload: { completed: true },
     })
     expect(res.statusCode).toBe(200)
-    const body = res.json() as { id: number; completed: boolean }
+    const body = res.json()
     expect(body.id).toBe(id)
     expect(body.completed).toBe(true)
     await app.close()
   })
 
-  it('returns 403 when patching another user\'s task', async () => {
+  it("returns 403 when patching another user's task", async () => {
     const app = buildApp({ jwtSecret: JWT_SECRET })
     await app.ready()
     const ownerToken = await loginAndGetToken(app)
@@ -380,7 +374,7 @@ describe('PATCH /tasks/:id', () => {
       headers: { authorization: `Bearer ${ownerToken}` },
       payload: { title: 'Owner task' },
     })
-    const { id } = created.json() as { id: number }
+    const { id } = created.json()
 
     const res = await app.inject({
       method: 'PATCH',
@@ -429,19 +423,19 @@ describe('DELETE /tasks/:id', () => {
       headers: { authorization: `Bearer ${token}` },
       payload: { title: 'Delete me' },
     })
-    const { id } = created.json() as { id: number }
+    const { id } = created.json()
     const res = await app.inject({
       method: 'DELETE',
       url: `/tasks/${id}`,
       headers: { authorization: `Bearer ${token}` },
     })
     expect(res.statusCode).toBe(200)
-    const body = res.json() as { id: number }
+    const body = res.json()
     expect(body.id).toBe(id)
     await app.close()
   })
 
-  it('returns 403 when deleting another user\'s task', async () => {
+  it("returns 403 when deleting another user's task", async () => {
     const app = buildApp({ jwtSecret: JWT_SECRET })
     await app.ready()
     const ownerToken = await loginAndGetToken(app)
@@ -453,7 +447,7 @@ describe('DELETE /tasks/:id', () => {
       headers: { authorization: `Bearer ${ownerToken}` },
       payload: { title: 'Cannot delete this' },
     })
-    const { id } = created.json() as { id: number }
+    const { id } = created.json()
 
     const res = await app.inject({
       method: 'DELETE',

@@ -14,6 +14,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { setAccessToken } from '@/lib/auth'
 
 const loginSchema = z.object({
   email: z
@@ -46,6 +47,8 @@ export function LoginPage() {
       })
 
       if (res.ok) {
+        const data = (await res.json()) as { accessToken: string }
+        setAccessToken(data.accessToken)
         navigate('/personal', { replace: true })
         return
       }

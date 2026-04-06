@@ -65,7 +65,7 @@ describe('POST /auth/login', () => {
       payload: { email: TEST_EMAIL, password: TEST_PASSWORD },
     })
     expect(res.statusCode).toBe(200)
-    const body = res.json() as { accessToken: string }
+    const body = res.json()
     expect(typeof body.accessToken).toBe('string')
     expect(body.accessToken.length).toBeGreaterThan(0)
 
@@ -131,7 +131,7 @@ describe('POST /auth/refresh', () => {
       cookies: { refresh_token: refreshToken },
     })
     expect(refreshRes.statusCode).toBe(200)
-    const refreshBody = refreshRes.json() as { accessToken: string }
+    const refreshBody = refreshRes.json()
     expect(typeof refreshBody.accessToken).toBe('string')
     expect(refreshBody.accessToken.length).toBeGreaterThan(0)
 
@@ -284,10 +284,7 @@ describe('POST /auth/signup', () => {
       payload: { email: SIGNUP_EMAIL, password: 'password123' },
     })
     expect(res.statusCode).toBe(201)
-    const body = res.json() as {
-      accessToken: string
-      user: { id: number; email: string }
-    }
+    const body = res.json()
     expect(typeof body.accessToken).toBe('string')
     expect(body.accessToken.length).toBeGreaterThan(0)
     expect(body.user.email).toBe(SIGNUP_EMAIL)

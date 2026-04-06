@@ -31,7 +31,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post('/signup', async (request, reply) => {
     const result = signupBodySchema.safeParse(request.body)
     if (!result.success) {
-      return reply.status(400).send({ error: 'Invalid request body' })
+      return await reply.status(400).send({ error: 'Invalid request body' })
     }
     const { email, password } = result.data
 
@@ -41,7 +41,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       .where(eq(users.email, email))
       .limit(1)
     if (existing) {
-      return reply.status(409).send({ error: 'Email already in use' })
+      return await reply.status(409).send({ error: 'Email already in use' })
     }
 
     const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS)
@@ -73,7 +73,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       maxAge: REFRESH_TOKEN_TTL_MS / 1000,
     })
 
-    return reply
+    return await reply
       .status(HTTP_CREATED)
       .send({ accessToken, user: { id: user.id, email: user.email } })
   })
@@ -81,7 +81,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post('/login', async (request, reply) => {
     const result = loginBodySchema.safeParse(request.body)
     if (!result.success) {
-      return reply.status(400).send({ error: 'Invalid request body' })
+      return await reply.status(400).send({ error: 'Invalid request body' })
     }
     const { email, password } = result.data
 
@@ -91,12 +91,12 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       .where(eq(users.email, email))
       .limit(1)
     if (!user) {
-      return reply.status(401).send({ error: 'Invalid credentials' })
+      return await reply.status(401).send({ error: 'Invalid credentials' })
     }
 
     const passwordValid = await bcrypt.compare(password, user.passwordHash)
     if (!passwordValid) {
-      return reply.status(401).send({ error: 'Invalid credentials' })
+      return await reply.status(401).send({ error: 'Invalid credentials' })
     }
 
     const accessToken = fastify.jwt.sign(
@@ -122,13 +122,13 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       maxAge: REFRESH_TOKEN_TTL_MS / 1000,
     })
 
-    return reply.status(200).send({ accessToken })
+    return await reply.status(200).send({ accessToken })
   })
 
   fastify.post('/refresh', async (request, reply) => {
-    const refreshToken = request.cookies['refresh_token']
+    const refreshToken = request.cookies.refresh_token
     if (!refreshToken) {
-      return reply.status(401).send({ error: 'Missing refresh token' })
+      return await reply.status(401).send({ error: 'Missing refresh token' })
     }
 
     const tokenHash = hashToken(refreshToken)
@@ -141,7 +141,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       .limit(1)
 
     if (!stored || stored.expiresAt < now) {
-      return reply
+      return await reply
         .status(401)
         .send({ error: 'Invalid or expired refresh token' })
     }
@@ -152,7 +152,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       .where(eq(users.id, stored.userId))
       .limit(1)
     if (!user) {
-      return reply.status(401).send({ error: 'User not found' })
+      return await reply.status(401).send({ error: 'User not found' })
     }
 
     // Rotate: delete old token, issue new one
@@ -181,7 +181,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       maxAge: REFRESH_TOKEN_TTL_MS / 1000,
     })
 
-    return reply.status(200).send({ accessToken })
+    return await reply.status(200).send({ accessToken })
   })
 
   const HTTP_NO_CONTENT = 204
