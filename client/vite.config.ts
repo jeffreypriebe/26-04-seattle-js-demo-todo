@@ -15,6 +15,7 @@ export default defineConfig({
     proxy: {
       '/auth': 'http://127.0.0.1:3001',
       '/tasks': 'http://127.0.0.1:3001',
+      '/teams': 'http://127.0.0.1:3001',
     },
   },
 })
