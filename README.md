@@ -39,6 +39,8 @@ cp .env.example .env
 
 `JWT_SECRET` has a safe default for local dev — you can leave it as-is unless you need to test production auth behavior.
 
+`APP_BASE_URL` sets the base URL used when building invite links (e.g. `GET /teams/:id/invite` returns an `invite_link`). It defaults to `http://localhost:5173` so invite links point to the React dev server. Set this to your production frontend URL in deployed environments.
+
 ### Run
 
 **API server** (Fastify, port 3001):

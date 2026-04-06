@@ -389,6 +389,26 @@ describe('GET /teams/:id/invite', () => {
     expect(body.invite_link).toContain('/join?code=')
     await app.close()
   })
+
+  it('uses APP_BASE_URL for invite_link when set', async () => {
+    const original = process.env.APP_BASE_URL
+    process.env.APP_BASE_URL = 'http://localhost:5173'
+    const app = buildApp({ jwtSecret: JWT_SECRET })
+    await app.ready()
+    const token = await loginAndGetToken(app, TEST_EMAIL, TEST_PASSWORD)
+    const res = await app.inject({
+      method: 'GET',
+      url: `/teams/${testTeamId}/invite`,
+      headers: { authorization: `Bearer ${token}` },
+    })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.invite_link).toBe(
+      `http://localhost:5173/join?code=${TEST_INVITE_CODE}`,
+    )
+    process.env.APP_BASE_URL = original
+    await app.close()
+  })
 })
 
 describe('GET /teams/:id/tasks', () => {
