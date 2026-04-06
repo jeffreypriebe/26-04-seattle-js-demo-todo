@@ -34,9 +34,11 @@ export function AddTaskDialog({ onAdd, isPending = false }: AddTaskDialogProps) 
   })
 
   function onSubmit(values: FormValues) {
+    // Send the raw YYYY-MM-DD value; the server stores it as a date
+    // (no timezone shifting — avoids date-only strings being parsed as UTC midnight)
     const dueDate =
       values.due_date && values.due_date.trim() !== ''
-        ? new Date(values.due_date).toISOString()
+        ? new Date(`${values.due_date}T00:00:00`).toISOString()
         : undefined
     onAdd(values.title, dueDate)
     reset()

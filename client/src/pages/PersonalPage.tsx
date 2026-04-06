@@ -51,7 +51,7 @@ export function PersonalPage() {
         title: newTask.title,
         due_date: newTask.due_date ?? null,
         completed: false,
-        position: (previous?.length ?? 0),
+        position: Math.max(-1, ...(previous ?? []).map(t => t.position)) + 1,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }
