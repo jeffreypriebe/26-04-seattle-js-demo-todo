@@ -6,6 +6,7 @@
 
 @theme inline {
     --font-sans: system-ui, -apple-system, sans-serif;
+    --color-overdue: #9F1916;
     --color-ring: var(--ring);
     --color-input: var(--input);
     --color-border: var(--border);

@@ -15,6 +15,15 @@ interface Task {
   updated_at: string
 }
 
+function isOverdue(task: Task): boolean {
+  if (task.completed || !task.due_date) return false
+  const d = new Date(task.due_date)
+  const dueDateLocal = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  const todayStart = new Date()
+  todayStart.setHours(0, 0, 0, 0)
+  return dueDateLocal < todayStart
+}
+
 async function fetchTasks(): Promise<Task[]> {
   const res = await apiFetch('/tasks')
   if (!res.ok) throw new Error('Failed to fetch tasks')
@@ -338,7 +347,13 @@ export function PersonalPage() {
               {task.title}
             </span>
             {task.due_date && (
-              <span className="shrink-0 text-xs text-muted-foreground">
+              <span
+                className="shrink-0 text-xs"
+                style={isOverdue(task)
+                  ? { color: 'var(--color-overdue)' }
+                  : { color: 'var(--color-muted-foreground)' }
+                }
+              >
                 {new Date(task.due_date).toLocaleDateString()}
               </span>
             )}
