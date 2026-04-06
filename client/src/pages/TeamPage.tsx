@@ -47,6 +47,7 @@ export function TeamPage() {
   const queryClient = useQueryClient()
   const [copied, setCopied] = React.useState<'code' | 'link' | null>(null)
   const [newTaskTitle, setNewTaskTitle] = React.useState('')
+  const addInputRef = React.useRef<HTMLInputElement>(null)
 
   const { data: inviteData, isLoading: inviteLoading, isError: inviteError } = useQuery({
     queryKey: ['team-invite', TEAM_ID],
@@ -85,6 +86,10 @@ export function TeamPage() {
     addTaskMutation.mutate(title)
   }
 
+  function focusAddInput() {
+    addInputRef.current?.focus()
+  }
+
   return (
     <div className="p-4">
       <h1 className="text-xl font-semibold mb-6">Team</h1>
@@ -96,6 +101,7 @@ export function TeamPage() {
 
         <form onSubmit={handleAddTask} className="flex gap-2 mb-3">
           <Input
+            ref={addInputRef}
             placeholder="Add a task…"
             value={newTaskTitle}
             onChange={e => setNewTaskTitle(e.target.value)}
@@ -114,7 +120,31 @@ export function TeamPage() {
         )}
 
         {!tasksLoading && tasks.length === 0 && (
-          <p className="text-sm text-muted-foreground">No team tasks yet.</p>
+          <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
+            <svg
+              viewBox="0 0 48 48"
+              fill="none"
+              className="h-12 w-12 text-muted-foreground/40"
+              aria-hidden="true"
+            >
+              <rect x="6" y="10" width="36" height="32" rx="4" stroke="currentColor" strokeWidth="2.5" />
+              <path d="M16 6v8M32 6v8" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+              <path d="M6 22h36" stroke="currentColor" strokeWidth="2.5" />
+              <circle cx="32" cy="34" r="6" fill="currentColor" fillOpacity="0.12" stroke="currentColor" strokeWidth="2" />
+              <path d="M30 34h4M32 32v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+            <p className="text-sm font-medium text-foreground">No shared tasks yet</p>
+            <p className="text-xs text-muted-foreground max-w-[220px]">
+              Add the first task above — your whole team will see it here.
+            </p>
+            <button
+              type="button"
+              onClick={focusAddInput}
+              className="mt-1 rounded-md border border-border px-4 py-1.5 text-xs font-medium transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+              Add first task
+            </button>
+          </div>
         )}
 
         <ul className="space-y-2">
