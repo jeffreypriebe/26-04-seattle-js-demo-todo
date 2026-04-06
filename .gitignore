@@ -148,3 +148,4 @@ data/*.db-wal
 .beads/
 .claude/
 .runtime/
+CLAUDE.md
