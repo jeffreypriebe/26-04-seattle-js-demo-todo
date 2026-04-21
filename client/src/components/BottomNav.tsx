@@ -72,11 +72,11 @@ export function BottomNav() {
               to={to}
               className={({ isActive }) =>
                 [
-                  'flex flex-col items-center justify-center min-h-[56px] gap-[2px]',
-                  'text-xs leading-[1.4] select-none px-4 py-1 rounded-full transition-colors',
+                  'flex flex-col items-center justify-center min-h-[56px] w-full gap-[2px]',
+                  'text-xs leading-[1.4] select-none transition-colors duration-150 ease-in-out motion-reduce:transition-none',
                   isActive
-                    ? 'text-white bg-white/20 font-medium'
-                    : 'text-white/50',
+                    ? 'text-white font-medium bg-white/20'
+                    : 'text-white/65 hover:bg-white/10',
                 ].join(' ')
               }
             >
